@@ -155,6 +155,14 @@ func TestRunDoctorReportsCriticalChecks(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("SHELL", "/usr/bin/zsh")
+	binDir := filepath.Join(home, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("MkdirAll(bin) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "zsh"), []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("WriteFile(fake zsh) error = %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if err := config.Save(config.Default()); err != nil {
 		t.Fatalf("config.Save() error = %v", err)
 	}

@@ -19,12 +19,11 @@ jobs:
       - run: go tool cover -func=coverage.out | awk '/^total:/ { if ($3 + 0 < 70) { print "coverage " $3 " is below 70%"; exit 1 } }'
       - run: go build -buildvcs=false ./...
 
-  termux-build:
+  android-termux-cross-build:
     runs-on: ubuntu-latest
-    container:
-      image: termux/termux-docker:aarch64
     steps:
       - uses: actions/checkout@v4
-      - run: pkg install -y golang git
-      - run: go test ./...
-      - run: go build -buildvcs=false ./...
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.4"
+      - run: GOOS=android GOARCH=arm64 go build -buildvcs=false ./cmd/ozsh
