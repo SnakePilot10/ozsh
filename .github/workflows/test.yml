@@ -18,6 +18,8 @@ jobs:
       - run: go test -coverprofile=coverage.out ./...
       - run: go tool cover -func=coverage.out | awk '/^total:/ { if ($3 + 0 < 70) { print "coverage " $3 " is below 70%"; exit 1 } }'
       - run: go build -buildvcs=false ./...
+      - run: scripts/release-smoke.sh
+      - run: scripts/install-smoke.sh
 
   android-termux-cross-build:
     runs-on: ubuntu-latest

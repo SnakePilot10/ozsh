@@ -14,6 +14,7 @@ GOCACHE=/tmp/ozsh-go-build GOMODCACHE=/tmp/ozsh-gomod go build -buildvcs=false .
 GOCACHE=/tmp/ozsh-go-build GOMODCACHE=/tmp/ozsh-gomod go test -run '^$' -bench BenchmarkRunApply -benchmem ./cmd/ozsh
 GOCACHE=/tmp/ozsh-go-build GOMODCACHE=/tmp/ozsh-gomod go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 scripts/release-smoke.sh
+scripts/install-smoke.sh
 ```
 
 Expected gates:
@@ -22,6 +23,7 @@ Expected gates:
 - `BenchmarkRunApply` stays below 100ms/op.
 - `govulncheck` reports 0 called vulnerabilities.
 - The smoke script builds, previews, applies, validates generated Zsh syntax, and resets with a temp HOME.
+- The installer smoke validates unattended install, PATH update, optional apply, and dry-run without network side effects.
 
 ## Snapshot Release
 

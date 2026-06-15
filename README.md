@@ -20,10 +20,25 @@ Ver `STATUS.md` antes de probar cambios grandes.
 Requires Go 1.24+.
 
 ```bash
-git clone https://github.com/snakepilot10/ozsh.git
+git clone https://github.com/SnakePilot10/ozsh.git
 cd ozsh
 ./install.sh
 ```
+
+Unattended source install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SnakePilot10/ozsh/main/install.sh | bash -s -- --yes --update-path --apply
+```
+
+Installer environment:
+
+- `OZSH_REPO` - Git URL or local path to clone
+- `OZSH_INSTALL_DIR` - source checkout directory
+- `OZSH_BIN_DIR` - binary install directory
+- `OZSH_YES=1` - install missing dependencies where supported
+- `OZSH_APPLY=1` - run `ozsh apply` after installation
+- `OZSH_UPDATE_PATH=1` - append the binary directory to `.zshrc` when missing
 
 ## Commands
 
@@ -168,8 +183,9 @@ If `templates/<prompt.style>.zsh.tmpl` exists, ozsh renders it with Go
 Termux is detected automatically via `TERMUX_VERSION` or `PREFIX`. The installer
 uses `pkg install` for missing `golang`, `zsh`, and `git` when available.
 
-ozsh does not run `chsh` on Termux. Run `ozsh apply`, start `zsh`, and let the
-managed block in `~/.zshrc` source `~/.config/ozsh/omega.zsh`.
+ozsh does not run `chsh` on Termux. Run `ozsh apply` or install with
+`OZSH_APPLY=1`, start `zsh`, and let the managed block in `~/.zshrc` source
+`~/.config/ozsh/omega.zsh`.
 
 ## Migration from omega-zsh-python
 
