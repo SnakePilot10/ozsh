@@ -1,0 +1,35 @@
+# Build outputs
+/ozsh
+/dist/
+/build/
+/bin/
+*.exe
+*.test
+*.out
+
+# Go caches and coverage
+coverage.out
+*.coverprofile
+
+# Local runtime files
+*.log
+*.tmp
+*.bak
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Agent/tooling context that should not be published as source
+.codex-agent/
+.codex/
+.agents/
+.opencode/
+graphify-out/
+
+# Local environment
+.env
+.env.*
+!.env.example

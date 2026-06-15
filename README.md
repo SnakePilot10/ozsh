@@ -1,0 +1,182 @@
+# ozsh
+
+> A declarative prompt builder for Zsh. Config -> Preview -> Generate -> Apply.
+
+## Current Status
+
+Beta funcional, no v1.0. La mayoria del CLI y la TUI estan implementados, y la
+suite local pasa al 100%. Quedan validaciones externas antes de declarar v1.0.
+Ver `STATUS.md` antes de probar cambios grandes.
+
+## Philosophy
+
+- **Motor first, TUI later.** The CLI engine works before any visual interface.
+- **Never touch `.zshrc` without backup.** Every `apply` and `reset` creates a timestamped backup.
+- **Manual plugins, no magic.** ozsh can source plugin files, but does not manage plugin runtime behavior.
+- **Termux is a first-class citizen.** Detected automatically, no shell switching magic.
+
+## Installation
+
+Requires Go 1.24+.
+
+```bash
+git clone https://github.com/snakepilot10/ozsh.git
+cd ozsh
+./install.sh
+```
+
+## Commands
+
+```bash
+ozsh doctor
+ozsh preview
+ozsh preview --real
+ozsh apply
+ozsh reset
+ozsh theme list
+ozsh theme preview cyber-cyan
+ozsh theme apply cyber-cyan
+ozsh header list
+ozsh header preview snake
+ozsh header apply snake
+ozsh plugin list
+ozsh plugin add https://github.com/user/plugin.git plugin.zsh
+ozsh plugin enable plugin
+ozsh plugin disable plugin
+ozsh plugin trust plugin
+ozsh plugin remove plugin
+ozsh tui
+ozsh update --check
+ozsh update
+```
+
+Use `--verbose` or `-v` for debug output. Logs are written to
+`~/.config/ozsh/ozsh.log` and rotate at 5MB with three retained backups.
+`ozsh update --check` fetches the source checkout and reports when a new version
+is available.
+
+## Configuration
+
+Config lives at `~/.config/ozsh/config.toml`.
+
+```toml
+[prompt]
+style = "simple"
+newline = true
+right_prompt = false
+disable_heavy_segments = false
+separator = "  "
+order = ["user", "cwd", "git", "status"]
+right_order = []
+```
+
+Available segments:
+
+- `user` - current username (`%n`)
+- `host` - hostname (`%m`)
+- `cwd` - current directory (`%~`)
+- `git` - branch when inside a Git repository
+- `status` - last command status
+- `time` - current time (`%*`)
+- `venv` - active Python virtualenv
+- `node` - Node.js version when `package.json` exists
+- `go` - Go version when `go.mod` exists
+- `battery` - Linux or Termux battery level
+- `jobs` - background job count
+
+Colors accept Zsh names (`cyan`, `red`, `default`) or hex values like
+`#00f5ff`. Hex colors are emitted into generated Zsh and rendered as truecolor
+ANSI in `ozsh preview`.
+
+Right prompt segments are configured with `right_order`; enabling
+`right_prompt = true` writes `RPROMPT`.
+
+Set `disable_heavy_segments = true` to skip runtime-heavy segments (`git`,
+`node`, `go`, and `battery`) in generated prompts and previews. The TUI also
+uses this lighter preview mode automatically on Termux.
+
+## Themes
+
+Built-in presets:
+
+- `cyber-cyan`
+- `neon-red`
+- `matrix-green`
+
+Theme files also live in `presets/*.toml` for humans and packagers.
+
+## Prompt Examples
+
+Minimal:
+
+```text
+snake  ~/dev/ozsh
+❯
+```
+
+With Git status:
+
+```text
+snake  ~/dev/ozsh  main +  ✘ 1
+❯
+```
+
+With right prompt:
+
+```text
+snake  ~/dev/ozsh  main +                  14:52
+❯
+```
+
+## Headers
+
+```toml
+[header]
+enabled = true
+style = "ascii" # ascii, figlet, custom
+text = "ozsh"
+```
+
+`figlet` is used only when installed. Otherwise ozsh falls back to plain text.
+
+## Manual Plugins
+
+Plugins are cloned into `~/.config/ozsh/plugins/`. Only `https` plugin URLs are
+accepted. Plugin load files must be relative `.zsh` or `.sh` paths. Generated
+`omega.zsh` sources plugin files only when they are enabled, readable, regular
+files under `$HOME`, not symlinks, and explicitly trusted with
+`ozsh plugin trust <name>`.
+
+## TUI
+
+`ozsh tui` opens a Bubble Tea interface with dashboard, prompt builder, editable
+preview, apply, doctor, themes, headers, and plugins tabs. The Apply tab shows
+the planned `.zshrc` diff first and requires confirmation before writing.
+
+## Screencasts
+
+An asciinema-compatible screencast lives at `docs/screencasts/preview.cast`.
+It can be converted to a GIF with `agg`.
+
+## Templates
+
+If `templates/<prompt.style>.zsh.tmpl` exists, ozsh renders it with Go
+`text/template`. Otherwise it uses the built-in generator.
+
+## Termux
+
+Termux is detected automatically via `TERMUX_VERSION` or `PREFIX`. The installer
+uses `pkg install` for missing `golang`, `zsh`, and `git` when available.
+
+ozsh does not run `chsh` on Termux. Run `ozsh apply`, start `zsh`, and let the
+managed block in `~/.zshrc` source `~/.config/ozsh/omega.zsh`.
+
+## Migration from omega-zsh-python
+
+Start with `examples/minimal.toml`, copy over the segment order and colors you
+want to preserve, then run:
+
+```bash
+ozsh preview
+ozsh apply
+```

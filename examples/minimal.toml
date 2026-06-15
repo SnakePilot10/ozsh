@@ -1,0 +1,104 @@
+[prompt]
+style = "simple"
+newline = true
+right_prompt = false
+disable_heavy_segments = false
+separator = "  "
+order = ["user", "cwd", "git", "status"]
+right_order = []
+
+[prompt.segments.user]
+enabled = true
+icon = ""
+fg = "cyan"
+bg = ""
+bold = true
+
+[prompt.segments.cwd]
+enabled = true
+icon = ""
+fg = "yellow"
+bg = ""
+bold = false
+
+[prompt.segments.git]
+enabled = true
+icon = ""
+fg = "magenta"
+bg = ""
+bold = false
+
+[prompt.segments.status]
+enabled = true
+icon = ""
+fg = "red"
+bg = ""
+bold = true
+show_success = false
+
+[prompt.segments.time]
+enabled = false
+icon = ""
+fg = "blue"
+bg = ""
+bold = false
+
+[prompt.segments.host]
+enabled = false
+icon = ""
+fg = "cyan"
+bg = ""
+bold = false
+
+[prompt.segments.venv]
+enabled = false
+icon = ""
+fg = "green"
+bg = ""
+bold = false
+
+[prompt.segments.node]
+enabled = false
+icon = ""
+fg = "green"
+bg = ""
+bold = false
+
+[prompt.segments.go]
+enabled = false
+icon = ""
+fg = "cyan"
+bg = ""
+bold = false
+
+[prompt.segments.battery]
+enabled = false
+icon = ""
+fg = "yellow"
+bg = ""
+bold = false
+
+[prompt.segments.jobs]
+enabled = false
+icon = ""
+fg = "magenta"
+bg = ""
+bold = false
+
+[plugins]
+engine = "manual"
+items = []
+
+[theme]
+name = "cyber-cyan"
+accent = "#00f5ff"
+background = "#09090d"
+muted = "#6b6b80"
+success = "#00ff9f"
+warning = "#ffe600"
+error = "#ff003c"
+
+[header]
+enabled = false
+style = "ascii"
+text = "ozsh"

@@ -1,0 +1,9 @@
+[theme]
+name = "matrix-green"
+accent = "#00ff9f"
+background = "#050807"
+muted = "#6b806f"
+success = "#00ff9f"
+warning = "#ffe600"
+error = "#ff003c"
+

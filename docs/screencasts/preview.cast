@@ -1,0 +1,6 @@
+{"version":2,"width":80,"height":24,"timestamp":1710000000,"env":{"SHELL":"/bin/zsh","TERM":"xterm-256color"}}
+[0.1,"o","$ ozsh preview\n"]
+[0.2,"o","snake  ~/dev/ozsh  main +\r\n❯\n"]
+[0.4,"o","$ ozsh theme preview neon-red\n"]
+[0.5,"o","snake  ~/dev/ozsh  main +\r\n❯\n"]
+

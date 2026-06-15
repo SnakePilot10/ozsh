@@ -1,0 +1,30 @@
+version: 2
+
+project_name: ozsh
+
+builds:
+  - id: ozsh
+    main: ./cmd/ozsh
+    binary: ozsh
+    flags:
+      - -buildvcs=false
+    goos:
+      - linux
+      - darwin
+      - android
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: android
+        goarch: amd64
+
+archives:
+  - formats: [tar.gz]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  use: github
