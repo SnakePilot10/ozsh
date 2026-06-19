@@ -29,7 +29,6 @@ func Load() (*Config, error) {
 	if p == "config.toml" {
 		return nil, fmt.Errorf("cannot determine config directory")
 	}
-
 	if _, err := os.Stat(p); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("failed to inspect config: %w", err)
@@ -58,6 +57,16 @@ func Save(cfg *Config) error {
 	if dir == "" {
 		return fmt.Errorf("cannot determine config directory")
 	}
+	if info, err := os.Stat(dir); err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("failed to create config file: config path is not a directory")
+		}
+		if info.Mode().Perm()&0o200 == 0 {
+			return fmt.Errorf("failed to create config file: config directory is not writable")
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to inspect config dir: %w", err)
+	}
 	if err := os.MkdirAll(dir, configDirMode); err != nil {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}
@@ -67,7 +76,7 @@ func Save(cfg *Config) error {
 
 	tmp, err := os.CreateTemp(dir, ".config.toml-*")
 	if err != nil {
-		return fmt.Errorf("failed to create temporary config: %w", err)
+		return fmt.Errorf("failed to create config file: %w", err)
 	}
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath)
