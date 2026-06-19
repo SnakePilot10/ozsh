@@ -15,6 +15,13 @@ func TestAddRejectsNonHTTPSURL(t *testing.T) {
 	}
 }
 
+func TestAddRejectsMissingLoadBeforeClone(t *testing.T) {
+	cfg := config.Default()
+	if _, err := Add(cfg, "https://example.com/plugin.git", ""); err == nil {
+		t.Fatal("Add() error = nil, want missing load error")
+	}
+}
+
 func TestRemoveAndSetEnabled(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	pluginDir := filepath.Join(Dir(), "demo")
