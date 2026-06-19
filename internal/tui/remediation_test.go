@@ -15,8 +15,12 @@ func keyRune(r rune) tea.KeyMsg {
 
 func TestTabAwareCursorClampsPerScreen(t *testing.T) {
 	model := NewModel(config.Default())
-	model.cursor = 999
 	model.setTab(tabThemes)
+	if model.cursor != 0 {
+		t.Fatalf("setTab() cursor = %d, want reset to zero", model.cursor)
+	}
+	model.cursor = 999
+	model.syncCursor()
 	if got, want := model.cursor, len(sortedThemeNames())-1; got != want {
 		t.Fatalf("theme cursor = %d, want %d", got, want)
 	}
