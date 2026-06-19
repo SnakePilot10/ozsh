@@ -161,7 +161,7 @@ func validateName(name string) error {
 
 func validateLoad(load string) error {
 	if load == "" {
-		return nil
+		return fmt.Errorf("plugin load file is required")
 	}
 	if filepath.IsAbs(load) {
 		return fmt.Errorf("plugin load path must be relative")
@@ -202,9 +202,6 @@ func validateTrustTarget(item config.PluginItem) error {
 	}
 	if err := validateLoad(load); err != nil {
 		return err
-	}
-	if load == "" {
-		return fmt.Errorf("plugin load file is required before trusting a plugin")
 	}
 
 	sourceInfo, err := os.Lstat(item.Source)
