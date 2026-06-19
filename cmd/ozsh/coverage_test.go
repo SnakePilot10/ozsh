@@ -10,7 +10,7 @@ import (
 	"github.com/snakepilot10/ozsh/internal/config"
 )
 
-func captureStdout(t *testing.T, fn func()) string {
+func captureStdoutCoverage(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
 	r, w, err := os.Pipe()
@@ -68,22 +68,22 @@ func TestThemeAndPluginPathHelpers(t *testing.T) {
 func TestSafeDisplayCommands(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	if out := captureStdout(t, printUsage); !strings.Contains(out, "Usage: ozsh") || !strings.Contains(out, "plugin") {
+	if out := captureStdoutCoverage(t, printUsage); !strings.Contains(out, "Usage: ozsh") || !strings.Contains(out, "plugin") {
 		t.Fatalf("printUsage() output:\n%s", out)
 	}
-	if out := captureStdout(t, func() { runPreview(nil) }); !strings.Contains(out, "❯") {
+	if out := captureStdoutCoverage(t, func() { runPreview(nil) }); !strings.Contains(out, "❯") {
 		t.Fatalf("runPreview() output:\n%s", out)
 	}
-	if out := captureStdout(t, func() { runTheme([]string{"list"}) }); !strings.Contains(out, "cyber-cyan") {
+	if out := captureStdoutCoverage(t, func() { runTheme([]string{"list"}) }); !strings.Contains(out, "cyber-cyan") {
 		t.Fatalf("runTheme(list) output:\n%s", out)
 	}
-	if out := captureStdout(t, func() { runHeader([]string{"list"}) }); !strings.Contains(out, "") {
-		t.Fatalf("runHeader(list) unexpectedly returned nothing")
+	if out := captureStdoutCoverage(t, func() { runHeader([]string{"list"}) }); strings.TrimSpace(out) == "" {
+		t.Fatal("runHeader(list) unexpectedly returned nothing")
 	}
-	if out := captureStdout(t, func() { runPlugin([]string{"list"}) }); !strings.Contains(out, "no plugins configured") {
+	if out := captureStdoutCoverage(t, func() { runPlugin([]string{"list"}) }); !strings.Contains(out, "no plugins configured") {
 		t.Fatalf("runPlugin(list) output:\n%s", out)
 	}
-	if out := captureStdout(t, func() { runUpdate([]string{"--check"}) }); !strings.Contains(out, "no source checkout") {
+	if out := captureStdoutCoverage(t, func() { runUpdate([]string{"--check"}) }); !strings.Contains(out, "no source checkout") {
 		t.Fatalf("runUpdate(check) output:\n%s", out)
 	}
 }
