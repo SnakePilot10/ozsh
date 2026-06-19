@@ -18,7 +18,8 @@ func HasBlock() bool {
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(data), blockStart)
+	content := string(data)
+	return strings.Contains(content, blockStart) && strings.Contains(content, blockEnd)
 }
 
 func ManagedBlock() string {
@@ -35,6 +36,9 @@ func PreviewInjectBlock() (string, string, error) {
 		}
 	}
 	before := string(data)
+	if hasMalformedBlock(before) {
+		return "", "", fmt.Errorf("managed ozsh block is malformed; restore or repair .zshrc before applying")
+	}
 	return before, injectBlockContent(before), nil
 }
 
@@ -87,14 +91,18 @@ func InjectBlock() error {
 	if err != nil {
 		return err
 	}
-	if _, err := Backup(); err != nil {
-		return fmt.Errorf("backup failed: %w", err)
-	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read .zshrc: %w", err)
 	}
-	if err := atomicWrite(path, []byte(injectBlockContent(string(data))), mode); err != nil {
+	content := string(data)
+	if hasMalformedBlock(content) {
+		return fmt.Errorf("managed ozsh block is malformed; refusing to modify .zshrc")
+	}
+	if _, err := Backup(); err != nil {
+		return fmt.Errorf("backup failed: %w", err)
+	}
+	if err := atomicWrite(path, []byte(injectBlockContent(content)), mode); err != nil {
 		return fmt.Errorf("failed to write .zshrc: %w", err)
 	}
 	return nil
@@ -109,14 +117,18 @@ func RemoveBlock() error {
 		}
 		return fmt.Errorf("failed to inspect .zshrc: %w", err)
 	}
-	if _, err := Backup(); err != nil {
-		return fmt.Errorf("backup failed: %w", err)
-	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read .zshrc: %w", err)
 	}
-	if err := atomicWrite(path, []byte(removeBlock(string(data))), info.Mode().Perm()); err != nil {
+	content := string(data)
+	if hasMalformedBlock(content) {
+		return fmt.Errorf("managed ozsh block is malformed; refusing to modify .zshrc")
+	}
+	if _, err := Backup(); err != nil {
+		return fmt.Errorf("backup failed: %w", err)
+	}
+	if err := atomicWrite(path, []byte(removeBlock(content)), info.Mode().Perm()); err != nil {
 		return fmt.Errorf("failed to write .zshrc: %w", err)
 	}
 	return nil
@@ -186,6 +198,25 @@ func injectBlockContent(content string) string {
 	return content + ManagedBlock()
 }
 
+func hasMalformedBlock(content string) bool {
+	inBlock := false
+	for _, line := range strings.Split(content, "\n") {
+		switch strings.TrimSpace(line) {
+		case blockStart:
+			if inBlock {
+				return true
+			}
+			inBlock = true
+		case blockEnd:
+			if !inBlock {
+				return true
+			}
+			inBlock = false
+		}
+	}
+	return inBlock
+}
+
 func removeBlock(content string) string {
 	singleSuffix := "\n" + ManagedBlock()
 	if strings.HasSuffix(content, singleSuffix) {
@@ -193,6 +224,9 @@ func removeBlock(content string) string {
 	}
 	if strings.HasPrefix(content, ManagedBlock()) {
 		return content[len(ManagedBlock()):]
+	}
+	if hasMalformedBlock(content) {
+		return content
 	}
 
 	lines := strings.Split(content, "\n")
