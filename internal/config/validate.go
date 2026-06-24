@@ -21,7 +21,10 @@ var validNamedColors = map[string]struct{}{
 	"default": {},
 }
 
-var hexColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+var (
+	hexColorPattern    = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+	pluginNamePattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
+)
 
 func Validate(cfg *Config) error {
 	if cfg == nil {
@@ -66,11 +69,7 @@ func Validate(cfg *Config) error {
 	if err := validateHeader(cfg.Header); err != nil {
 		return err
 	}
-	if err := validatePlugins(cfg.Plugins); err != nil {
-		return err
-	}
-
-	return nil
+	return validatePlugins(cfg.Plugins)
 }
 
 func FillDefaults(cfg *Config) {
@@ -122,12 +121,8 @@ func validateColor(color string) error {
 
 func validateTheme(theme ThemeConfig) error {
 	colors := map[string]string{
-		"accent":     theme.Accent,
-		"background": theme.Background,
-		"muted":      theme.Muted,
-		"success":    theme.Success,
-		"warning":    theme.Warning,
-		"error":      theme.Error,
+		"accent": theme.Accent, "background": theme.Background, "muted": theme.Muted,
+		"success": theme.Success, "warning": theme.Warning, "error": theme.Error,
 	}
 	for name, color := range colors {
 		if err := validateColor(color); err != nil {
@@ -155,17 +150,14 @@ func validatePlugins(plugins PluginConfig) error {
 	}
 	seen := map[string]struct{}{}
 	for _, item := range plugins.Items {
-		if strings.TrimSpace(item.Name) == "" {
-			return fmt.Errorf("plugin name cannot be empty")
+		if !pluginNamePattern.MatchString(item.Name) {
+			return fmt.Errorf("invalid plugin name %q", item.Name)
 		}
 		if _, ok := seen[item.Name]; ok {
 			return fmt.Errorf("duplicate plugin %q", item.Name)
 		}
 		seen[item.Name] = struct{}{}
-		if item.Source == "" {
-			return fmt.Errorf("plugin %q source cannot be empty", item.Name)
-		}
-		if err := validateHomePath(item.Source); err != nil {
+		if err := validateManagedPluginSource(item); err != nil {
 			return fmt.Errorf("plugin %q source: %w", item.Name, err)
 		}
 		if err := validatePluginLoad(item.Load); err != nil {
@@ -176,8 +168,8 @@ func validatePlugins(plugins PluginConfig) error {
 }
 
 func validatePluginLoad(load string) error {
-	if load == "" {
-		return nil
+	if strings.TrimSpace(load) == "" {
+		return fmt.Errorf("load file is required")
 	}
 	if filepath.IsAbs(load) {
 		return fmt.Errorf("path must be relative to plugin source")
@@ -193,25 +185,16 @@ func validatePluginLoad(load string) error {
 	return nil
 }
 
-func validateHomePath(path string) error {
+func validateManagedPluginSource(item PluginItem) error {
 	home := os.Getenv("HOME")
 	if home == "" {
-		return nil
+		return fmt.Errorf("cannot determine HOME")
 	}
-	absHome, err := filepath.Abs(home)
-	if err != nil {
-		return err
+	root := filepath.Join(home, ".config", "ozsh", "plugins")
+	expected := filepath.Clean(filepath.Join(root, item.Name))
+	actual := filepath.Clean(item.Source)
+	if actual != expected {
+		return fmt.Errorf("source must be %s", expected)
 	}
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	rel, err := filepath.Rel(absHome, absPath)
-	if err != nil {
-		return err
-	}
-	if rel == "." || (!strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != "..") {
-		return nil
-	}
-	return fmt.Errorf("path must stay under HOME")
+	return nil
 }

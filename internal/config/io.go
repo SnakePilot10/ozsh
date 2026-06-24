@@ -8,6 +8,11 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+const (
+	configDirMode  = 0o700
+	configFileMode = 0o600
+)
+
 func Dir() string {
 	if home := os.Getenv("HOME"); home != "" {
 		return filepath.Join(home, ".config", "ozsh")
@@ -21,7 +26,13 @@ func Path() string {
 
 func Load() (*Config, error) {
 	p := Path()
-	if _, err := os.Stat(p); os.IsNotExist(err) {
+	if p == "config.toml" {
+		return nil, fmt.Errorf("cannot determine config directory")
+	}
+	if _, err := os.Stat(p); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to inspect config: %w", err)
+		}
 		if err := Save(Default()); err != nil {
 			return nil, fmt.Errorf("failed to create default config: %w", err)
 		}
@@ -46,19 +57,50 @@ func Save(cfg *Config) error {
 	if dir == "" {
 		return fmt.Errorf("cannot determine config directory")
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if info, err := os.Stat(dir); err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("failed to create config file: config path is not a directory")
+		}
+		if info.Mode().Perm()&0o200 == 0 {
+			return fmt.Errorf("failed to create config file: config directory is not writable")
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to inspect config dir: %w", err)
+	}
+	if err := os.MkdirAll(dir, configDirMode); err != nil {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}
+	if err := os.Chmod(dir, configDirMode); err != nil {
+		return fmt.Errorf("failed to secure config dir: %w", err)
+	}
 
-	f, err := os.Create(Path())
+	tmp, err := os.CreateTemp(dir, ".config.toml-*")
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
-	defer f.Close()
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
 
-	enc := toml.NewEncoder(f)
-	if err := enc.Encode(cfg); err != nil {
+	if err := tmp.Chmod(configFileMode); err != nil {
+		tmp.Close()
+		return fmt.Errorf("failed to secure temporary config: %w", err)
+	}
+	if err := toml.NewEncoder(tmp).Encode(cfg); err != nil {
+		tmp.Close()
 		return fmt.Errorf("failed to encode config: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("failed to flush config: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close config: %w", err)
+	}
+	if err := os.Rename(tmpPath, Path()); err != nil {
+		return fmt.Errorf("failed to replace config atomically: %w", err)
+	}
+	if err := os.Chmod(Path(), configFileMode); err != nil {
+		return fmt.Errorf("failed to secure config file: %w", err)
 	}
 	return nil
 }
