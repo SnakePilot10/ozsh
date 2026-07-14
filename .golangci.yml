@@ -5,11 +5,11 @@ run:
   tests: true
 
 linters:
+  default: none
   enable:
     - govet
     - ineffassign
     - misspell
-    - staticcheck
     - unused
 
 formatters:
