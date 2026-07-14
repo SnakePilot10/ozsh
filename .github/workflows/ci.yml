@@ -16,6 +16,7 @@ on:
 permissions:
   contents: read
   packages: write
+  pull-requests: read
   security-events: write
 
 env:
