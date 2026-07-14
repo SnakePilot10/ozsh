@@ -5,7 +5,7 @@
 `ozsh` no es un servicio web persistente. Es un binario CLI/TUI distribuido por:
 
 - instalador source-based (`install.sh`),
-- artefactos GoReleaser,
+- GitHub Releases generados por GoReleaser,
 - Homebrew,
 - AUR,
 - imagen Docker opcional para validacion y ejecucion aislada.
@@ -16,7 +16,8 @@ Por eso, el healthcheck de produccion es CLI-based: construir o resolver el bina
 
 - Local: checkout del repo, Go 1.24+, scripts locales.
 - Staging: rama `develop`; deploy parametrizado por `DEPLOY_STAGING_COMMAND` o `DEPLOY_TARGET_STAGING`.
-- Produccion: rama `main` o tags `v*`; deploy parametrizado por `DEPLOY_PROD_COMMAND` o `DEPLOY_TARGET_PRODUCTION`.
+- Produccion: `main` publica imagen GHCR; tags `v*` publican GitHub Release con binarios y checksums.
+- Deploy externo opcional: `DEPLOY_PROD_COMMAND` o `DEPLOY_TARGET_PRODUCTION` para destinos fuera de GitHub.
 
 ## Variables
 
@@ -56,10 +57,23 @@ scripts/healthcheck.sh
 
 ## Deploy production
 
-1. Mergea a `main` o crea un tag `v*`.
-2. GitHub Actions ejecuta validacion, seguridad, Docker y deploy production.
-3. `scripts/deploy-prod.sh` requiere confirmacion local o `OZSH_ASSUME_YES=1` en CI.
-4. `scripts/healthcheck.sh` valida el binario.
+1. Mergea a `main` para publicar la imagen Docker en GHCR y ejecutar el gate de produccion.
+2. Crea un tag `v*` para publicar una version instalable en GitHub Releases.
+3. GitHub Actions ejecuta validacion, seguridad, Docker y, en tags, GoReleaser.
+4. GoReleaser adjunta binarios multiplataforma y `checksums.txt` al release.
+5. `scripts/deploy-prod.sh` sigue disponible para un destino externo opcional y requiere confirmacion local o `OZSH_ASSUME_YES=1` en CI.
+6. `scripts/healthcheck.sh` valida el binario.
+
+Publicar una version real:
+
+```bash
+git checkout main
+git pull --ff-only origin main
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+El tag `v1.0.0` dispara la publicacion de GitHub Release. Los binarios del release imprimen la version del tag con `ozsh version`.
 
 Deploy manual:
 
@@ -71,7 +85,7 @@ scripts/healthcheck.sh
 ## Rollback
 
 - Binario instalado por source checkout: volver a un tag estable y reconstruir.
-- GoReleaser/Homebrew/AUR: reinstalar version anterior publicada.
+- GitHub Releases/Homebrew/AUR: reinstalar version anterior publicada.
 - Docker: volver a un tag anterior de GHCR.
 - Config de usuario: `ozsh reset` elimina el bloque gestionado y conserva backups timestamped.
 

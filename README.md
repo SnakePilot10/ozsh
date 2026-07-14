@@ -19,6 +19,8 @@ Ver `STATUS.md` antes de probar cambios grandes.
 
 Requires Go 1.24+.
 
+Download a versioned binary from GitHub Releases when available, or install from source:
+
 ```bash
 git clone https://github.com/SnakePilot10/ozsh.git
 cd ozsh
@@ -204,7 +206,7 @@ ozsh apply
 - CLI entrypoint: `cmd/ozsh/main.go`.
 - Terminal UI: Bubble Tea, Bubbles and Lip Gloss.
 - Config format: TOML.
-- Release tooling: GoReleaser, Homebrew formula and AUR PKGBUILD.
+- Release tooling: GoReleaser, GitHub Releases, Homebrew formula and AUR PKGBUILD.
 - CI/CD: GitHub Actions.
 
 ## Developer Setup

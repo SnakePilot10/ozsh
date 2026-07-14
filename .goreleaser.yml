@@ -8,6 +8,8 @@ builds:
     binary: ozsh
     flags:
       - -buildvcs=false
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
     goos:
       - linux
       - darwin
