@@ -22,8 +22,8 @@ var validNamedColors = map[string]struct{}{
 }
 
 var (
-	hexColorPattern    = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
-	pluginNamePattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
+	hexColorPattern   = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+	pluginNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
 )
 
 func Validate(cfg *Config) error {

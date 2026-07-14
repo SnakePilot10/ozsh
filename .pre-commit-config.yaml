@@ -1,0 +1,13 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ozsh-lint
+        name: ozsh lint
+        entry: scripts/lint.sh
+        language: system
+        pass_filenames: false
+      - id: ozsh-test-fast
+        name: ozsh fast tests
+        entry: scripts/test.sh --fast
+        language: system
+        pass_filenames: false
