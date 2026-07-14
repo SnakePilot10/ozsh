@@ -196,3 +196,80 @@ want to preserve, then run:
 ozsh preview
 ozsh apply
 ```
+
+## Development Stack
+
+- Language: Go 1.24+.
+- Dependency manager: Go modules.
+- CLI entrypoint: `cmd/ozsh/main.go`.
+- Terminal UI: Bubble Tea, Bubbles and Lip Gloss.
+- Config format: TOML.
+- Release tooling: GoReleaser, Homebrew formula and AUR PKGBUILD.
+- CI/CD: GitHub Actions.
+
+## Developer Setup
+
+```bash
+git clone https://github.com/SnakePilot10/ozsh.git
+cd ozsh
+scripts/setup.sh
+```
+
+If `pre-commit` is installed, `scripts/setup.sh` installs local hooks. The hooks
+run `scripts/lint.sh` and fast tests before each commit.
+
+## Quality Commands
+
+```bash
+scripts/lint.sh --check      # gofmt check, go vet, golangci-lint when installed
+scripts/test.sh              # coverage, race tests and smoke tests
+scripts/build.sh             # production binary at bin/ozsh
+scripts/healthcheck.sh       # CLI healthcheck with isolated HOME
+scripts/release-smoke.sh     # release smoke path
+scripts/install-smoke.sh     # installer smoke path
+```
+
+Coverage currently gates at 70%. The target is to raise it toward 80% without
+blocking release-candidate work.
+
+## Project Structure
+
+```text
+cmd/ozsh/          CLI entrypoint and command tests
+internal/config/   TOML config loading, saving and validation
+internal/logging/  local structured logging and rotation
+internal/plugins/  manual plugin management and trust rules
+internal/prompt/   prompt generation, templates and preview rendering
+internal/shell/    shell detection, .zshrc management and backups
+internal/tui/      Bubble Tea interface
+packaging/         Homebrew and AUR packaging
+presets/           built-in themes
+scripts/           local automation, smoke tests and production loop
+templates/         optional Zsh prompt templates
+```
+
+## CI/CD and Production Loop
+
+The repository includes a production loop for local and CI validation:
+
+```bash
+git checkout -b feature/my-change
+scripts/production-loop.sh "feat: describe the change"
+```
+
+The loop validates lint, tests, build and healthcheck. If everything passes, it
+commits with the provided Conventional Commit message and pushes the current
+`feature/*` branch automatically.
+
+Read:
+
+- `ANALISIS_PROYECTO.md` for project analysis.
+- `GIT_WORKFLOW.md` for branch and PR rules.
+- `DEPLOYMENT.md` for deployment and rollback.
+- `LOOP.md` for the full production-loop contract.
+
+## Contributing
+
+Use Conventional Commits and work from `feature/*`, `hotfix/*` or `release/*`
+branches. Do not push directly to `main`. Pull requests should include local
+validation output and any release or deployment notes.

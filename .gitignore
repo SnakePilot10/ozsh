@@ -3,24 +3,30 @@
 /dist/
 /build/
 /bin/
+/tmp/
 *.exe
 *.test
 *.out
 
 # Go caches and coverage
 coverage.out
+coverage.html
 *.coverprofile
+.cache/
 
 # Local runtime files
 *.log
 *.tmp
 *.bak
+*.pid
 
 # Editor and OS noise
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+*.swp
+*.swo
 
 # Agent/tooling context that should not be published as source
 .codex-agent/
@@ -33,3 +39,7 @@ graphify-out/
 .env
 .env.*
 !.env.example
+
+# Security and CI artifacts
+gitleaks-report.*
+govulncheck-report.*

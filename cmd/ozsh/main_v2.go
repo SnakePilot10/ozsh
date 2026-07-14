@@ -21,9 +21,9 @@ import (
 var log *logging.Logger
 
 const (
-	version            = "0.2.0-dev"
-	gitCommandTimeout  = 30 * time.Second
-	gitInspectTimeout  = 10 * time.Second
+	version           = "0.2.0-dev"
+	gitCommandTimeout = 30 * time.Second
+	gitInspectTimeout = 10 * time.Second
 )
 
 func main() {
