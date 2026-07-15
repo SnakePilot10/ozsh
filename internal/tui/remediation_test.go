@@ -52,7 +52,7 @@ func TestPreviewRoutesInputOnlyToFocusedField(t *testing.T) {
 		t.Fatalf("unfocused cwd input changed: %q", model.inputs[1].Value())
 	}
 
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = updated.(Model)
 	updated, _ = model.Update(keyRune('z'))
 	model = updated.(Model)

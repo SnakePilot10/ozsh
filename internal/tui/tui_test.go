@@ -161,10 +161,10 @@ func TestPreviewInputFocusCyclesAndSanitizesValues(t *testing.T) {
 	model := NewModel(config.Default())
 	model.tab = 2
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = updated.(Model)
 	if model.inputFocus != 1 {
-		t.Fatalf("tab input focus = %d, want 1", model.inputFocus)
+		t.Fatalf("down input focus = %d, want 1", model.inputFocus)
 	}
 
 	model.inputs[0].SetValue("  pilot\n")
@@ -309,6 +309,53 @@ func TestPluginInputsUpdateURLField(t *testing.T) {
 
 	if model.pluginURL.Value() != "x" {
 		t.Fatalf("plugin URL input = %q, want x", model.pluginURL.Value())
+	}
+}
+
+func TestPluginInputsAllowBackspaceInURLAndLoad(t *testing.T) {
+	model := NewModel(config.Default())
+	model.tab = tabPlugins
+	model.pluginURL.SetValue("https://example.com/x")
+	model.pluginURL.SetCursor(len(model.pluginURL.Value()))
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	model = updated.(Model)
+	if model.pluginURL.Value() != "https://example.com/" {
+		t.Fatalf("plugin URL after backspace = %q", model.pluginURL.Value())
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	model.pluginLoad.SetValue("plugin.zsh")
+	model.pluginLoad.SetCursor(len(model.pluginLoad.Value()))
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	model = updated.(Model)
+	if model.pluginLoad.Value() != "plugin.zs" {
+		t.Fatalf("plugin load after backspace = %q", model.pluginLoad.Value())
+	}
+}
+
+func TestTabNavigationWorksFromPreviewAndBuilder(t *testing.T) {
+	model := NewModel(config.Default())
+	model.setTab(tabPreview)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	if model.tab != tabApply {
+		t.Fatalf("preview tab navigation = %d, want apply tab", model.tab)
+	}
+
+	model.setTab(tabBuilder)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	model = updated.(Model)
+	if model.tab != tabPreview {
+		t.Fatalf("builder tab navigation = %d, want preview tab", model.tab)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(Model)
+	if model.tab != tabApply {
+		t.Fatalf("preview right navigation = %d, want apply tab", model.tab)
 	}
 }
 

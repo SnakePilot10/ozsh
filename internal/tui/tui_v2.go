@@ -117,6 +117,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" || (msg.String() == "q" && m.tab != tabPreview && m.tab != tabPlugins) {
 			return m, tea.Quit
 		}
+		if m.formAllowsGlobalTabNavigation(msg) {
+			switch msg.String() {
+			case "tab", "right":
+				m.setTab((m.tab + 1) % len(tabs))
+				return m, nil
+			case "shift+tab", "left":
+				m.setTab((m.tab + len(tabs) - 1) % len(tabs))
+				return m, nil
+			}
+		}
 
 		// Form tabs own printable input. This prevents global shortcut handling
 		// from swallowing text, including numeric exit statuses and plugin URLs.
@@ -400,7 +410,7 @@ func (m Model) preview() string {
 		b.WriteString(errorStyle.Render(m.previewError))
 	}
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("tab / shift+tab switches fields; arrows switch fields; type edits only the focused field"))
+	b.WriteString(mutedStyle.Render("up/down switches fields | tab/shift+tab/left/right changes tabs | type edits only the focused field"))
 	return b.String()
 }
 
@@ -549,12 +559,12 @@ func (m *Model) moveSegment(delta int) {
 func (m Model) updatePreviewInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
-		case "tab", "down":
+		case "down":
 			m.inputFocus = wrapIndex(m.inputFocus+1, len(m.inputs))
 			m.cursor = m.inputFocus
 			m.focusPreviewInput()
 			return m, nil
-		case "shift+tab", "up":
+		case "up":
 			m.inputFocus = wrapIndex(m.inputFocus-1, len(m.inputs))
 			m.cursor = m.inputFocus
 			m.focusPreviewInput()
@@ -571,6 +581,17 @@ func (m Model) updatePreviewInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) formAllowsGlobalTabNavigation(msg tea.KeyMsg) bool {
+	if m.tab != tabPreview {
+		return false
+	}
+	switch msg.String() {
+	case "tab", "shift+tab", "left", "right":
+		return true
+	}
+	return false
+}
+
 func (m *Model) focusPreviewInput() {
 	for i := range m.inputs {
 		if i == m.inputFocus {
@@ -584,6 +605,8 @@ func (m *Model) focusPreviewInput() {
 func (m Model) pluginInputShouldHandle(msg tea.KeyMsg) bool {
 	switch msg.String() {
 	case "tab", "shift+tab":
+		return true
+	case "backspace", "delete", "left", "right", "ctrl+h", "ctrl+w", "ctrl+u", "ctrl+k", "home", "end":
 		return true
 	case "up", "down", "j", "k", "enter":
 		return false
