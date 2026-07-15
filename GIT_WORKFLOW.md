@@ -31,7 +31,7 @@ Tipos aceptados:
 Ejemplos:
 
 ```text
-feat: add production loop automation
+feat: add prompt theme preset
 fix(shell): preserve zshrc newline during reset
 ci: add security scan job
 ```
@@ -41,9 +41,9 @@ ci: add security scan job
 1. Actualiza `main` local.
 2. Crea una rama `feature/<nombre>`.
 3. Implementa cambios pequenos y revisables.
-4. Ejecuta `scripts/production-loop.sh "tipo: mensaje"`.
-5. El loop ejecuta lint, tests, build, healthcheck y `graphify update .` si aplica.
-6. Si todo pasa, el loop crea commit y hace push automatico a la rama feature.
+4. Ejecuta `scripts/lint.sh --check`, `scripts/test.sh`, `scripts/build.sh` y `scripts/healthcheck.sh`.
+5. Ejecuta `graphify update .` si `graphify-out/graph.json` existe.
+6. Crea un commit con Conventional Commits y pushea la rama.
 7. Abre PR hacia `develop` si existe; si no, hacia `main` hasta crear `develop`.
 8. Espera CI verde y revision antes de mergear.
 

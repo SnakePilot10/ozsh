@@ -31,7 +31,3 @@ scripts/test.sh
 scripts/build.sh
 scripts/healthcheck.sh
 ```
-
-## Production loop
-
-Usa `scripts/production-loop.sh "type: message"` desde una rama `feature/*`. Si todo pasa, el script crea commit y hace push automatico de la rama.
