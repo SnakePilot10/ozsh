@@ -55,7 +55,6 @@ func Generate(cfg *config.Config) (string, error) {
 }
 `)
 	b.WriteString("\n")
-	genHeader(&b, cfg)
 	genPluginSources(&b, cfg)
 
 	if segmentEnabled(cfg, "git") {
@@ -216,29 +215,6 @@ func genSegment(b *strings.Builder, target, name string, cfg config.SegmentConfi
 	}
 }
 
-func genHeader(b *strings.Builder, cfg *config.Config) {
-	if !cfg.Header.Enabled {
-		return
-	}
-	color := zshExpandableWord(fgOpen(cfg.Theme.Accent))
-	text := color + zshSingleQuote(cfg.Header.Text+"%f")
-	switch cfg.Header.Style {
-	case "figlet":
-		plainText := zshSingleQuote(cfg.Header.Text)
-		fmt.Fprintf(b, `if command -v figlet >/dev/null 2>&1; then
-  figlet %s | while IFS= read -r line; do print -P -- %s"${line}"'%%f'; done
-else
-  print -P -- %s
-fi
-
-`, plainText, color, text)
-	case "custom":
-		fmt.Fprintf(b, "print -P -- %s\n\n", text)
-	default:
-		fmt.Fprintf(b, "print -P -- %s\n\n", text)
-	}
-}
-
 func genPluginSources(b *strings.Builder, cfg *config.Config) {
 	helperWritten := false
 	for _, plugin := range cfg.Plugins.Items {
@@ -309,16 +285,6 @@ func zshSingleQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
-}
-
-func zshExpandableWord(value string) string {
-	if value == "" {
-		return "''"
-	}
-	if strings.HasPrefix(value, "$(") {
-		return `"` + value + `"`
-	}
-	return zshSingleQuote(value)
 }
 
 func segmentEnabled(cfg *config.Config, name string) bool {

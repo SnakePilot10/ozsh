@@ -256,11 +256,8 @@ func TestGenerate_UsesConfiguredSeparator(t *testing.T) {
 	}
 }
 
-func TestGenerate_HeaderAndPluginSources(t *testing.T) {
+func TestGenerate_PluginSources(t *testing.T) {
 	cfg := config.Default()
-	cfg.Header.Enabled = true
-	cfg.Header.Style = "ascii"
-	cfg.Header.Text = "hello"
 	cfg.Plugins.Items = []config.PluginItem{
 		{Name: "enabled", Enabled: true, Trusted: true, Source: "/tmp/plugin", Load: "plugin.zsh"},
 		{Name: "disabled", Enabled: false, Source: "/tmp/disabled.zsh"},
@@ -272,9 +269,6 @@ func TestGenerate_HeaderAndPluginSources(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if !strings.Contains(output, `print -P -- "$(ozsh_color "#00f5ff" "cyan")"'hello%f'`) {
-		t.Errorf("Generate() output missing header:\n%s", output)
-	}
 	if !strings.Contains(output, `ozsh_source_plugin "/tmp/plugin/plugin.zsh"`) {
 		t.Errorf("Generate() output missing enabled plugin source:\n%s", output)
 	}
@@ -311,18 +305,14 @@ func TestGenerate_DoesNotReadTemplateFromWorkingDirectory(t *testing.T) {
 	}
 }
 
-func TestGenerate_HostileHeaderAndSeparatorDoNotExecute(t *testing.T) {
+func TestGenerate_HostileSeparatorDoesNotExecute(t *testing.T) {
 	if _, err := exec.LookPath("zsh"); err != nil {
 		t.Skip("zsh not available")
 	}
 	tmp := t.TempDir()
-	headerSentinel := filepath.Join(tmp, "header-pwned")
 	separatorSentinel := filepath.Join(tmp, "separator-pwned")
 
 	cfg := config.Default()
-	cfg.Header.Enabled = true
-	cfg.Header.Style = "ascii"
-	cfg.Header.Text = "hello $(touch " + headerSentinel + ") `touch " + headerSentinel + "` \" '"
 	cfg.Prompt.Separator = "$(touch " + separatorSentinel + "):`touch " + separatorSentinel + "`:\")}; touch " + separatorSentinel + " #"
 	cfg.Prompt.Order = []string{"user", "cwd"}
 	cfg.Prompt.RightOrder = nil
@@ -342,12 +332,10 @@ func TestGenerate_HostileHeaderAndSeparatorDoNotExecute(t *testing.T) {
 	if out, err := exec.Command("zsh", "-f", script).CombinedOutput(); err != nil {
 		t.Fatalf("zsh execution failed: %v\n%s\n%s", err, out, output)
 	}
-	for _, sentinel := range []string{headerSentinel, separatorSentinel} {
-		if _, err := os.Stat(sentinel); err == nil {
-			t.Fatalf("hostile generated shell executed sentinel %s\n%s", sentinel, output)
-		} else if !os.IsNotExist(err) {
-			t.Fatalf("stat sentinel %s: %v", sentinel, err)
-		}
+	if _, err := os.Stat(separatorSentinel); err == nil {
+		t.Fatalf("hostile generated shell executed sentinel %s\n%s", separatorSentinel, output)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat sentinel %s: %v", separatorSentinel, err)
 	}
 }
 

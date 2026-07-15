@@ -53,7 +53,7 @@ func TestPreviewContextIsEditable(t *testing.T) {
 	}
 }
 
-func TestThemeHeaderAndPluginControls(t *testing.T) {
+func TestThemeAndPluginControls(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	cfg := config.Default()
@@ -76,14 +76,7 @@ func TestThemeHeaderAndPluginControls(t *testing.T) {
 		t.Fatal("theme was not applied")
 	}
 
-	model.tab = 6
-	model.cursor = 0
-	model.applyHeaderAtCursor()
-	if !model.cfg.Header.Enabled {
-		t.Fatal("header was not applied")
-	}
-
-	model.tab = 7
+	model.tab = tabPlugins
 	model.cursor = 0
 	model.togglePluginAtCursor()
 	model.trustPluginAtCursor()
@@ -100,7 +93,7 @@ func TestPluginTrustControlRejectsUnsafeLoadFile(t *testing.T) {
 		{Name: "demo", Enabled: true, Trusted: false, Source: filepath.Join(home, ".config", "ozsh", "plugins", "demo"), Load: "plugin.zsh"},
 	}
 	model := NewModel(cfg)
-	model.tab = 7
+	model.tab = tabPlugins
 	model.cursor = 0
 
 	model.trustPluginAtCursor()
@@ -215,7 +208,7 @@ func TestPluginControlsUntrustAndRejectEmptyAddForm(t *testing.T) {
 		{Name: "demo", Enabled: true, Trusted: true, Source: filepath.Join(t.TempDir(), "demo"), Load: "plugin.zsh"},
 	}
 	model := NewModel(cfg)
-	model.tab = 7
+	model.tab = tabPlugins
 	model.cursor = 0
 
 	model.untrustPluginAtCursor()
@@ -272,8 +265,7 @@ func TestViewsRenderAllTabs(t *testing.T) {
 		{tab: 3, want: "planned .zshrc diff"},
 		{tab: 4, want: "press enter to fix"},
 		{tab: 5, want: "theme gallery"},
-		{tab: 6, want: "headers"},
-		{tab: 7, want: "plugins"},
+		{tab: 6, want: "plugins"},
 	} {
 		model.tab = tc.tab
 		view := model.View()
@@ -302,7 +294,7 @@ func TestDoctorFixCreatesMissingFiles(t *testing.T) {
 
 func TestPluginInputsUpdateURLField(t *testing.T) {
 	model := NewModel(config.Default())
-	model.tab = 7
+	model.tab = tabPlugins
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	model = updated.(Model)

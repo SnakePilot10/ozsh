@@ -104,10 +104,5 @@ func Default() *Config {
 			Warning:    "#ffe600",
 			Error:      "#ff003c",
 		},
-		Header: HeaderConfig{
-			Enabled: false,
-			Style:   "ascii",
-			Text:    "ozsh",
-		},
 	}
 }

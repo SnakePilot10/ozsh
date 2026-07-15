@@ -54,7 +54,7 @@ func TestThemeAndPluginPathHelpers(t *testing.T) {
 	if cfg.Theme.Name != "neon-red" || cfg.Prompt.Segments["user"].FG != preset.Accent {
 		t.Fatalf("applyTheme() did not update theme/user: %+v", cfg.Theme)
 	}
-	if len(sortedThemeNames()) == 0 || len(sortedHeaderNames()) == 0 {
+	if len(sortedThemeNames()) == 0 {
 		t.Fatal("preset sorting returned an empty list")
 	}
 	if got := pluginLoadPath(config.PluginItem{Source: "/tmp/demo"}); got != "<no load file>" {
@@ -76,9 +76,6 @@ func TestSafeDisplayCommands(t *testing.T) {
 	}
 	if out := captureStdoutCoverage(t, func() { runTheme([]string{"list"}) }); !strings.Contains(out, "cyber-cyan") {
 		t.Fatalf("runTheme(list) output:\n%s", out)
-	}
-	if out := captureStdoutCoverage(t, func() { runHeader([]string{"list"}) }); strings.TrimSpace(out) == "" {
-		t.Fatal("runHeader(list) unexpectedly returned nothing")
 	}
 	if out := captureStdoutCoverage(t, func() { runPlugin([]string{"list"}) }); !strings.Contains(out, "no plugins configured") {
 		t.Fatalf("runPlugin(list) output:\n%s", out)

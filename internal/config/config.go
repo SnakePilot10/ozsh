@@ -4,7 +4,6 @@ type Config struct {
 	Prompt  PromptConfig `toml:"prompt"`
 	Plugins PluginConfig `toml:"plugins"`
 	Theme   ThemeConfig  `toml:"theme"`
-	Header  HeaderConfig `toml:"header"`
 }
 
 type PromptConfig struct {
@@ -48,10 +47,4 @@ type ThemeConfig struct {
 	Success    string `toml:"success"`
 	Warning    string `toml:"warning"`
 	Error      string `toml:"error"`
-}
-
-type HeaderConfig struct {
-	Enabled bool   `toml:"enabled"`
-	Style   string `toml:"style"`
-	Text    string `toml:"text"`
 }

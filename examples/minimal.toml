@@ -97,8 +97,3 @@ muted = "#6b6b80"
 success = "#00ff9f"
 warning = "#ffe600"
 error = "#ff003c"
-
-[header]
-enabled = false
-style = "ascii"
-text = "ozsh"

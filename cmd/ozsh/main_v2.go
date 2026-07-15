@@ -48,8 +48,6 @@ func main() {
 		runReset()
 	case "theme":
 		runTheme(args[1:])
-	case "header":
-		runHeader(args[1:])
 	case "plugin":
 		runPlugin(args[1:])
 	case "tui":
@@ -77,7 +75,6 @@ func printUsage() {
 	fmt.Println("  doctor     Validate environment and config")
 	fmt.Println("  reset      Remove the ozsh block from .zshrc")
 	fmt.Println("  theme      List, preview, or apply prompt themes")
-	fmt.Println("  header     List, preview, or apply prompt headers")
 	fmt.Println("  plugin     Manage manual plugins")
 	fmt.Println("  tui        Open the terminal UI")
 	fmt.Println("  version    Print version")
@@ -449,7 +446,7 @@ func pluginLoadPath(item config.PluginItem) string {
 }
 
 func suggestCommand(input string) string {
-	commands := []string{"preview", "apply", "doctor", "reset", "theme", "header", "plugin", "tui", "version", "update"}
+	commands := []string{"preview", "apply", "doctor", "reset", "theme", "plugin", "tui", "version", "update"}
 	sort.Slice(commands, func(i, j int) bool {
 		return editDistance(input, commands[i]) < editDistance(input, commands[j])
 	})
@@ -459,64 +456,9 @@ func suggestCommand(input string) string {
 	return ""
 }
 
-func runHeader(args []string) {
-	if len(args) == 0 {
-		fmt.Println("Usage: ozsh header <list|apply|preview>")
-		os.Exit(1)
-	}
-	switch args[0] {
-	case "list":
-		for _, name := range sortedHeaderNames() {
-			fmt.Println(name)
-		}
-	case "apply":
-		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "header apply requires a name")
-			os.Exit(1)
-		}
-		preset, ok := config.HeaderPresets[args[1]]
-		if !ok {
-			fmt.Fprintf(os.Stderr, "unknown header: %s\n", args[1])
-			os.Exit(1)
-		}
-		cfg, err := config.Load()
-		if err != nil {
-			exitConfigError(err)
-		}
-		cfg.Header = preset
-		if err := config.Save(cfg); err != nil {
-			exitConfigError(err)
-		}
-		fmt.Printf("✓ header applied: %s\n", args[1])
-	case "preview":
-		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "header preview requires a name")
-			os.Exit(1)
-		}
-		preset, ok := config.HeaderPresets[args[1]]
-		if !ok {
-			fmt.Fprintf(os.Stderr, "unknown header: %s\n", args[1])
-			os.Exit(1)
-		}
-		fmt.Println(preset.Text)
-	default:
-		fmt.Fprintf(os.Stderr, "unknown header command: %s\n", args[0])
-		os.Exit(1)
-	}
-}
-
 func sortedThemeNames() []string {
 	names := make([]string, 0, len(config.Presets))
 	for name := range config.Presets {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
-}
-
-func sortedHeaderNames() []string {
-	names := make([]string, 0, len(config.HeaderPresets))
-	for name := range config.HeaderPresets {
 		names = append(names, name)
 	}
 	sort.Strings(names)

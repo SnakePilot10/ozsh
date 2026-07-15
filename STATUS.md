@@ -5,7 +5,7 @@ Fecha de pausa: 2026-06-12.
 ## Resumen
 
 `ozsh` esta en estado release-candidate local. El CLI principal, generador,
-presets, headers, plugins manuales, logging, empaquetado base y TUI Bubble Tea
+presets, plugins manuales, logging, empaquetado base y TUI Bubble Tea
 ya existen.
 
 El proyecto esta listo para una validacion externa de v1.0. La suite local,
@@ -21,7 +21,6 @@ el tag.
 - `ozsh reset`
 - `ozsh doctor`
 - `ozsh theme list|preview|apply`
-- `ozsh header list|preview|apply`
 - `ozsh plugin list|add|remove|enable|disable|trust|untrust`
 - `ozsh tui`
 - `ozsh version`
@@ -31,7 +30,7 @@ el tag.
 ## TUI
 
 La TUI incluye dashboard, builder, preview editable, apply con diff y
-confirmacion, doctor con fixes basicos, temas, headers y plugins. En Termux usa
+confirmacion, doctor con fixes basicos, temas y plugins. En Termux usa
 preview ligero y el builder permite desactivar segmentos pesados con `h`.
 
 ## Seguridad de plugins

@@ -1,7 +1,7 @@
 # ozsh — TODO de Producción
 
 > Estado actual: pausa de implementación; CLI/TUI beta funcional con suite local verde
-> Meta: v1.0 estable con TUI, temas, headers y plugins manuales
+> Meta: v1.0 estable con TUI, temas y plugins manuales
 > Nota: `go test ./...` pasa actualmente al 100%; ver `STATUS.md`.
 
 ---
@@ -160,30 +160,7 @@
 
 ---
 
-## Fase 5: Headers (v0.5)
-
-**Prioridad: MEDIA — Polish visual**
-
-- [x] **Header system**
-  - [x] Campo `[header]` en config
-  - [x] `enabled = true/false`
-  - [x] `style = "figlet" / "ascii" / "custom"`
-  - [x] `text = "snake"` — texto a mostrar
-
-- [x] **Generación de headers**
-  - [x] Integración con `figlet` si está instalado
-  - [x] Fallback a ASCII art embebido si no hay figlet
-  - [x] Headers predefinidos (5-10 opciones)
-  - [x] Colorear header con acento del tema
-
-- [x] **Headers en TUI**
-  - [x] Preview de header en pantalla dedicada
-  - [x] Selector de fuente figlet (si disponible)
-  - [x] Input para texto personalizado
-
----
-
-## Fase 6: Plugins Manuales (v0.6)
+## Fase 5: Plugins Manuales (v0.5)
 
 **Prioridad: MEDIA — Expansión funcional**
 

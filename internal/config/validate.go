@@ -70,9 +70,6 @@ func Validate(cfg *Config) error {
 	if err := validateTheme(cfg.Theme); err != nil {
 		return err
 	}
-	if err := validateHeader(cfg.Header); err != nil {
-		return err
-	}
 	return validatePlugins(cfg.Plugins)
 }
 
@@ -97,12 +94,6 @@ func FillDefaults(cfg *Config) {
 	}
 	if cfg.Theme.Name == "" {
 		cfg.Theme = defaults.Theme
-	}
-	if cfg.Header.Style == "" {
-		cfg.Header.Style = defaults.Header.Style
-	}
-	if cfg.Header.Text == "" {
-		cfg.Header.Text = defaults.Header.Text
 	}
 }
 
@@ -134,18 +125,6 @@ func validateTheme(theme ThemeConfig) error {
 		}
 	}
 	return nil
-}
-
-func validateHeader(header HeaderConfig) error {
-	if strings.ContainsAny(header.Text, "\r\n") {
-		return fmt.Errorf("header text cannot contain newlines")
-	}
-	switch header.Style {
-	case "figlet", "ascii", "custom":
-		return nil
-	default:
-		return fmt.Errorf("header style must be figlet, ascii, or custom")
-	}
 }
 
 func validatePlugins(plugins PluginConfig) error {

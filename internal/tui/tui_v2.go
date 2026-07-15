@@ -26,7 +26,7 @@ var (
 	panelStyle  = lipgloss.NewStyle().Background(lipgloss.Color("#09090d")).Foreground(lipgloss.Color("#e0e0e0")).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#00f5ff")).Padding(1, 2)
 )
 
-var tabs = []string{"Dashboard", "Builder", "Preview", "Apply", "Doctor", "Themes", "Headers", "Plugins"}
+var tabs = []string{"Dashboard", "Builder", "Preview", "Apply", "Doctor", "Themes", "Plugins"}
 
 const (
 	tabDashboard = iota
@@ -35,13 +35,11 @@ const (
 	tabApply
 	tabDoctor
 	tabThemes
-	tabHeaders
 	tabPlugins
 )
 
 // Model keeps one selection cursor, but clamps and resets it per tab. This
-// prevents a position valid in Builder from being reused against Themes,
-// Headers, or Plugins.
+// prevents a position valid in Builder from being reused against Themes or Plugins.
 type Model struct {
 	cfg *config.Config
 
@@ -125,7 +123,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "shift+tab", "left":
 				m.setTab((m.tab + len(tabs) - 1) % len(tabs))
 				return m, nil
-			case "1", "2", "3", "4", "5", "6", "7", "8":
+			case "1", "2", "3", "4", "5", "6", "7":
 				idx, _ := strconv.Atoi(msg.String())
 				m.setTab(idx - 1)
 				return m, nil
@@ -142,7 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
-		case "1", "2", "3", "4", "5", "6", "7", "8":
+		case "1", "2", "3", "4", "5", "6", "7":
 			idx, _ := strconv.Atoi(msg.String())
 			m.setTab(idx - 1)
 		case "tab", "right":
@@ -224,7 +222,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.addPluginFromInputs()
 			}
 		case "?":
-			m.msg = "1-8 tabs | arrows move | space toggle | J/K reorder | s save | q quit"
+			m.msg = "1-7 tabs | arrows move | space toggle | J/K reorder | s save | q quit"
 		}
 	}
 	return m, nil
@@ -238,8 +236,6 @@ func (m *Model) handleEnter() {
 		m.msg = m.fixDoctor()
 	case tabThemes:
 		m.applyThemeAtCursor()
-	case tabHeaders:
-		m.applyHeaderAtCursor()
 	case tabPlugins:
 		if strings.TrimSpace(m.pluginURL.Value()) != "" {
 			m.addPluginFromInputs()
@@ -283,8 +279,6 @@ func (m Model) selectionCount() int {
 		return len(m.cfg.Prompt.Order)
 	case tabThemes:
 		return len(sortedThemeNames())
-	case tabHeaders:
-		return len(sortedHeaderNames())
 	case tabPlugins:
 		return len(m.cfg.Plugins.Items)
 	case tabPreview:
@@ -332,8 +326,6 @@ func (m Model) View() string {
 		b.WriteString(m.doctor())
 	case tabThemes:
 		b.WriteString(m.themes())
-	case tabHeaders:
-		b.WriteString(m.headers())
 	case tabPlugins:
 		b.WriteString(m.plugins())
 	}
@@ -364,7 +356,7 @@ func (m Model) renderTabs() string {
 }
 
 func (m Model) dashboard() string {
-	return fmt.Sprintf("config:   %s\nomega:    %s\nblock:    %t\nplatform: %s/%s\ntermux:   %t\nbackups:  %d\n\nactions: 1-8 switch tabs | Apply + a | Doctor + enter",
+	return fmt.Sprintf("config:   %s\nomega:    %s\nblock:    %t\nplatform: %s/%s\ntermux:   %t\nbackups:  %d\n\nactions: 1-7 switch tabs | Apply + a | Doctor + enter",
 		config.Path(), shell.OmegaZshPath(), shell.HasBlock(), runtime.GOOS, runtime.GOARCH, shell.IsTermux(), backupCount())
 }
 
@@ -485,29 +477,6 @@ func (m Model) themes() string {
 	return b.String()
 }
 
-func (m Model) headers() string {
-	names := sortedHeaderNames()
-	var b strings.Builder
-	b.WriteString("headers\n\n")
-	if len(names) == 0 {
-		return "headers\n\nno presets available"
-	}
-	for i, name := range names {
-		preset := config.HeaderPresets[name]
-		prefix := "  "
-		if i == m.cursor {
-			prefix = "> "
-		}
-		fmt.Fprintf(&b, "%s%s  style=%s text=%q\n", prefix, name, preset.Style, preset.Text)
-	}
-	selected := config.HeaderPresets[names[m.cursor]]
-	b.WriteString("\npreview\n")
-	b.WriteString(selected.Text)
-	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("enter applies selected header"))
-	return b.String()
-}
-
 func (m Model) plugins() string {
 	var b strings.Builder
 	b.WriteString("plugins\n\n")
@@ -596,7 +565,7 @@ func (m Model) formAllowsGlobalNavigation(msg tea.KeyMsg) bool {
 		switch msg.String() {
 		case "left", "right":
 			return true
-		case "1", "2", "3", "4", "5", "6", "7", "8":
+		case "1", "2", "3", "4", "5", "6", "7":
 			return m.pluginURL.Value() == "" && m.pluginLoad.Value() == ""
 		}
 	}
@@ -781,15 +750,6 @@ func (m Model) previewThemeConfig(name string) *config.Config {
 	return clone
 }
 
-func (m *Model) applyHeaderAtCursor() {
-	names := sortedHeaderNames()
-	if len(names) == 0 || m.cursor < 0 || m.cursor >= len(names) {
-		return
-	}
-	m.cfg.Header = config.HeaderPresets[names[m.cursor]]
-	m.msg = "header applied: " + names[m.cursor]
-}
-
 func (m *Model) togglePluginAtCursor() {
 	if m.cursor < 0 || m.cursor >= len(m.cfg.Plugins.Items) {
 		return
@@ -848,15 +808,6 @@ func (m *Model) addPluginFromInputs() {
 func sortedThemeNames() []string {
 	names := make([]string, 0, len(config.Presets))
 	for name := range config.Presets {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
-}
-
-func sortedHeaderNames() []string {
-	names := make([]string, 0, len(config.HeaderPresets))
-	for name := range config.HeaderPresets {
 		names = append(names, name)
 	}
 	sort.Strings(names)

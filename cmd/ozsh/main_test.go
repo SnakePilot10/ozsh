@@ -224,32 +224,6 @@ func TestRunThemeCommands(t *testing.T) {
 	}
 }
 
-func TestRunHeaderCommands(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	list := captureStdout(t, func() {
-		runHeader([]string{"list"})
-	})
-	if !strings.Contains(list, "snake") {
-		t.Fatalf("header list output = %q, want snake", list)
-	}
-
-	applied := captureStdout(t, func() {
-		runHeader([]string{"apply", "snake"})
-	})
-	if !strings.Contains(applied, "header applied: snake") {
-		t.Fatalf("header apply output = %q, want applied message", applied)
-	}
-
-	preview := captureStdout(t, func() {
-		runHeader([]string{"preview", "snake"})
-	})
-	if !strings.Contains(preview, "snake") {
-		t.Fatalf("header preview output = %q, want snake text", preview)
-	}
-}
-
 func TestRunPluginCommands(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -298,7 +272,7 @@ func TestRunPluginCommands(t *testing.T) {
 	}
 }
 
-func TestCommandVersionThemePreviewAndHeaderList(t *testing.T) {
+func TestCommandVersionThemePreviewAndUpdateCheck(t *testing.T) {
 	bin := buildTestBinary(t)
 	home := t.TempDir()
 
@@ -310,7 +284,6 @@ func TestCommandVersionThemePreviewAndHeaderList(t *testing.T) {
 		{name: "version", args: []string{"version"}, want: version},
 		{name: "update check no checkout", args: []string{"update", "--check"}, want: "no source checkout found"},
 		{name: "theme preview", args: []string{"theme", "preview", "neon-red"}, want: "\x1b[38;2;255;0;60m"},
-		{name: "header list", args: []string{"header", "list"}, want: "snake"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := exec.Command(bin, tc.args...)

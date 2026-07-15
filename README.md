@@ -53,9 +53,6 @@ ozsh reset
 ozsh theme list
 ozsh theme preview cyber-cyan
 ozsh theme apply cyber-cyan
-ozsh header list
-ozsh header preview snake
-ozsh header apply snake
 ozsh plugin list
 ozsh plugin add https://github.com/user/plugin.git plugin.zsh
 ozsh plugin enable plugin
@@ -145,17 +142,6 @@ snake  ~/dev/ozsh  main +                  14:52
 ❯
 ```
 
-## Headers
-
-```toml
-[header]
-enabled = true
-style = "ascii" # ascii, figlet, custom
-text = "ozsh"
-```
-
-`figlet` is used only when installed. Otherwise ozsh falls back to plain text.
-
 ## Manual Plugins
 
 Plugins are cloned into `~/.config/ozsh/plugins/`. Only `https` plugin URLs are
@@ -167,7 +153,7 @@ files under `$HOME`, not symlinks, and explicitly trusted with
 ## TUI
 
 `ozsh tui` opens a Bubble Tea interface with dashboard, prompt builder, editable
-preview, apply, doctor, themes, headers, and plugins tabs. The Apply tab shows
+preview, apply, doctor, themes, and plugins tabs. The Apply tab shows
 the planned `.zshrc` diff first and requires confirmation before writing.
 
 ## Screencasts
