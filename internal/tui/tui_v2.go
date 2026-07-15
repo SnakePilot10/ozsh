@@ -117,13 +117,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" || (msg.String() == "q" && m.tab != tabPreview && m.tab != tabPlugins) {
 			return m, tea.Quit
 		}
-		if m.formAllowsGlobalTabNavigation(msg) {
+		if m.formAllowsGlobalNavigation(msg) {
 			switch msg.String() {
 			case "tab", "right":
 				m.setTab((m.tab + 1) % len(tabs))
 				return m, nil
 			case "shift+tab", "left":
 				m.setTab((m.tab + len(tabs) - 1) % len(tabs))
+				return m, nil
+			case "1", "2", "3", "4", "5", "6", "7", "8":
+				idx, _ := strconv.Atoi(msg.String())
+				m.setTab(idx - 1)
 				return m, nil
 			}
 		}
@@ -530,7 +534,7 @@ func (m Model) plugins() string {
 	b.WriteByte('\n')
 	b.WriteString(m.pluginLoad.View())
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("tab switches form field | enter adds when URL is present, otherwise toggles selected | t trust | u untrust"))
+	b.WriteString(mutedStyle.Render("tab switches form field | left/right changes tabs | enter adds when URL is present, otherwise toggles selected | t trust | u untrust"))
 	return b.String()
 }
 
@@ -581,13 +585,20 @@ func (m Model) updatePreviewInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) formAllowsGlobalTabNavigation(msg tea.KeyMsg) bool {
-	if m.tab != tabPreview {
-		return false
-	}
-	switch msg.String() {
-	case "tab", "shift+tab", "left", "right":
-		return true
+func (m Model) formAllowsGlobalNavigation(msg tea.KeyMsg) bool {
+	switch m.tab {
+	case tabPreview:
+		switch msg.String() {
+		case "tab", "shift+tab", "left", "right":
+			return true
+		}
+	case tabPlugins:
+		switch msg.String() {
+		case "left", "right":
+			return true
+		case "1", "2", "3", "4", "5", "6", "7", "8":
+			return m.pluginURL.Value() == "" && m.pluginLoad.Value() == ""
+		}
 	}
 	return false
 }
@@ -606,7 +617,7 @@ func (m Model) pluginInputShouldHandle(msg tea.KeyMsg) bool {
 	switch msg.String() {
 	case "tab", "shift+tab":
 		return true
-	case "backspace", "delete", "left", "right", "ctrl+h", "ctrl+w", "ctrl+u", "ctrl+k", "home", "end":
+	case "backspace", "delete", "ctrl+h", "ctrl+w", "ctrl+u", "ctrl+k", "home", "end":
 		return true
 	case "up", "down", "j", "k", "enter":
 		return false

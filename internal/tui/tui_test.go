@@ -359,6 +359,33 @@ func TestTabNavigationWorksFromPreviewAndBuilder(t *testing.T) {
 	}
 }
 
+func TestPluginNavigationWorksWhileKeepingNumericURLInput(t *testing.T) {
+	model := NewModel(config.Default())
+	model.setTab(tabPlugins)
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(Model)
+	if model.tab != tabDashboard {
+		t.Fatalf("plugin right navigation = %d, want dashboard tab", model.tab)
+	}
+
+	model.setTab(tabPlugins)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	model = updated.(Model)
+	if model.tab != tabBuilder || model.pluginURL.Value() != "" {
+		t.Fatalf("empty plugin numeric navigation tab=%d url=%q, want builder tab and empty url", model.tab, model.pluginURL.Value())
+	}
+
+	model.setTab(tabPlugins)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	model = updated.(Model)
+	if model.tab != tabPlugins || model.pluginURL.Value() != "h2" {
+		t.Fatalf("active plugin URL numeric input tab=%d url=%q, want plugins tab and h2", model.tab, model.pluginURL.Value())
+	}
+}
+
 func TestSegmentItemFormatting(t *testing.T) {
 	item := segmentItem{name: "git", enabled: true, fg: "magenta", bold: true}
 
