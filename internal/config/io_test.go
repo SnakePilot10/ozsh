@@ -125,6 +125,15 @@ func TestValidateRejectsInvalidColor(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsInvalidPromptStyle(t *testing.T) {
+	cfg := Default()
+	cfg.Prompt.Style = "../templates/simple"
+
+	if err := Validate(cfg); err == nil {
+		t.Fatal("Validate() error = nil, want invalid prompt style error")
+	}
+}
+
 func TestValidateAcceptsNamedAndHexColors(t *testing.T) {
 	cfg := Default()
 	cfg.Prompt.Segments["user"] = SegmentConfig{Enabled: true, FG: "cyan", BG: "#00f5ff"}

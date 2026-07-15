@@ -1,8 +1,8 @@
 package prompt
 
 import (
+	"embed"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -10,6 +10,9 @@ import (
 
 	"github.com/snakepilot10/ozsh/internal/config"
 )
+
+//go:embed templates/*.zsh.tmpl
+var templateFS embed.FS
 
 // Generate renders a prompt from an isolated copy of cfg. Generation fills in
 // legacy defaults, so mutating the caller's active TUI/config state here would
@@ -37,6 +40,21 @@ func Generate(cfg *config.Config) (string, error) {
 `)
 		b.WriteString("\n")
 	}
+	b.WriteString(`ozsh_join() {
+  local sep="$1"
+  shift
+  local out=""
+  local part
+  for part in "$@"; do
+    if [[ -n "$out" ]]; then
+      out+="$sep"
+    fi
+    out+="$part"
+  done
+  print -r -- "$out"
+}
+`)
+	b.WriteString("\n")
 	genHeader(&b, cfg)
 	genPluginSources(&b, cfg)
 
@@ -110,14 +128,15 @@ func Generate(cfg *config.Config) (string, error) {
 	}
 
 	b.WriteString("\n")
-	sep := zshPromptSeparator(cfg.Prompt.Separator)
+	sep := zshSingleQuote(cfg.Prompt.Separator)
+	fmt.Fprintf(&b, "  local ozsh_separator=%s\n", sep)
 	if cfg.Prompt.Newline {
-		fmt.Fprintf(&b, "  PROMPT=\"${(j:%s:)parts}\n❯ \"\n", sep)
+		b.WriteString("  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"$'\\n❯ '\n")
 	} else {
-		fmt.Fprintf(&b, "  PROMPT=\"${(j:%s:)parts} ❯ \"\n", sep)
+		b.WriteString("  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\") ❯ \"\n")
 	}
 	if cfg.Prompt.RightPrompt || len(cfg.Prompt.RightOrder) > 0 {
-		fmt.Fprintf(&b, "  RPROMPT=\"${(j:%s:)right_parts}\"\n", sep)
+		b.WriteString("  RPROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${right_parts[@]}\")\"\n")
 	}
 	b.WriteString("}\n\nprecmd_functions+=(ozsh_prompt)\n")
 	return b.String(), nil
@@ -201,20 +220,22 @@ func genHeader(b *strings.Builder, cfg *config.Config) {
 	if !cfg.Header.Enabled {
 		return
 	}
-	color := fgOpen(cfg.Theme.Accent)
-	text := strconv.Quote(color + cfg.Header.Text + "%f")
+	color := zshExpandableWord(fgOpen(cfg.Theme.Accent))
+	text := color + zshSingleQuote(cfg.Header.Text+"%f")
 	switch cfg.Header.Style {
 	case "figlet":
-		plainText := strconv.Quote(cfg.Header.Text)
+		plainText := zshSingleQuote(cfg.Header.Text)
 		fmt.Fprintf(b, `if command -v figlet >/dev/null 2>&1; then
-  figlet %s | while IFS= read -r line; do print -P "%s${line}%%f"; done
+  figlet %s | while IFS= read -r line; do print -P -- %s"${line}"'%%f'; done
 else
-  print -P %s
+  print -P -- %s
 fi
 
 `, plainText, color, text)
+	case "custom":
+		fmt.Fprintf(b, "print -P -- %s\n\n", text)
 	default:
-		fmt.Fprintf(b, "print -P %s\n\n", text)
+		fmt.Fprintf(b, "print -P -- %s\n\n", text)
 	}
 }
 
@@ -268,12 +289,12 @@ func pluginSourcePath(plugin config.PluginItem) (string, bool) {
 }
 
 func generateFromTemplate(cfg *config.Config) (string, bool, error) {
-	path := filepath.Join("templates", cfg.Prompt.Style+".zsh.tmpl")
-	if _, err := os.Stat(path); err != nil {
-		return "", false, nil
-	}
-	tmpl, err := template.ParseFiles(path)
+	path := "templates/" + cfg.Prompt.Style + ".zsh.tmpl"
+	tmpl, err := template.ParseFS(templateFS, path)
 	if err != nil {
+		if strings.Contains(err.Error(), "file does not exist") || strings.Contains(err.Error(), "no matching files") || strings.Contains(err.Error(), "matches no files") {
+			return "", false, nil
+		}
 		return "", true, fmt.Errorf("failed to parse template: %w", err)
 	}
 	var b strings.Builder
@@ -281,6 +302,23 @@ func generateFromTemplate(cfg *config.Config) (string, bool, error) {
 		return "", true, fmt.Errorf("failed to execute template: %w", err)
 	}
 	return b.String(), true, nil
+}
+
+func zshSingleQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func zshExpandableWord(value string) string {
+	if value == "" {
+		return "''"
+	}
+	if strings.HasPrefix(value, "$(") {
+		return `"` + value + `"`
+	}
+	return zshSingleQuote(value)
 }
 
 func segmentEnabled(cfg *config.Config, name string) bool {
@@ -307,8 +345,6 @@ func fgOpen(color string) string {
 	}
 	return "%F{" + color + "}"
 }
-
-func zshPromptSeparator(separator string) string { return strings.ReplaceAll(separator, ":", "\\:") }
 
 func usesHexColor(cfg *config.Config) bool {
 	for _, segment := range cfg.Prompt.Segments {
