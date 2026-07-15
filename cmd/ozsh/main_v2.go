@@ -18,10 +18,12 @@ import (
 	"github.com/snakepilot10/ozsh/internal/tui"
 )
 
-var log *logging.Logger
+var (
+	log     *logging.Logger
+	version = "0.2.0-dev"
+)
 
 const (
-	version           = "0.2.0-dev"
 	gitCommandTimeout = 30 * time.Second
 	gitInspectTimeout = 10 * time.Second
 )

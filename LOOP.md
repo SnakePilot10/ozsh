@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-El loop de produccion automatiza el camino desde una rama `feature/*` hasta una rama publicada lista para PR. El humano sigue controlando el diseno, la revision y el merge; la maquina ejecuta gates repetibles y publica la branch cuando todo pasa.
+El loop de produccion automatiza el camino desde una rama `feature/*` hasta una rama publicada lista para PR. El humano sigue controlando el diseno, la revision, el merge y la decision de versionar; la maquina ejecuta gates repetibles y publica artefactos cuando todo pasa.
 
 ## Uso rapido
 
@@ -41,6 +41,7 @@ El humano debe intervenir en estos puntos:
 - Revisar el diff antes de ejecutar el loop si el cambio es sensible.
 - Crear o revisar el PR.
 - Aprobar y mergear el PR.
+- Crear un tag `v*` cuando el cambio debe convertirse en release instalable.
 - Configurar branch protection y secrets de deploy en GitHub.
 - Confirmar deploy manual de produccion cuando se usa `scripts/deploy-prod.sh` fuera de CI.
 
@@ -67,7 +68,21 @@ El loop local reduce fallos antes del PR. GitHub Actions vuelve a ejecutar los g
 - `validate`
 - `security-scan`
 - `docker-build`
+- `release` en tags `v*`
 - `deploy-staging`
 - `deploy-production`
 
 El merge solo debe ocurrir con CI verde.
+
+## Release real
+
+Para publicar una version descargable por usuarios:
+
+```bash
+git checkout main
+git pull --ff-only origin main
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+El tag dispara GoReleaser en GitHub Actions. El release resultante contiene binarios para Linux, macOS y Android, mas `checksums.txt`. Para `ozsh`, este es el despliegue principal de produccion; `DEPLOY_PROD_COMMAND` queda como extension opcional para servidores o mirrors externos.
