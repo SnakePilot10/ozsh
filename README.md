@@ -246,29 +246,31 @@ internal/shell/    shell detection, .zshrc management and backups
 internal/tui/      Bubble Tea interface
 packaging/         Homebrew and AUR packaging
 presets/           built-in themes
-scripts/           local automation, smoke tests and production loop
+scripts/           local automation, validation, deploy and smoke tests
 templates/         optional Zsh prompt templates
 ```
 
-## CI/CD and Production Loop
+## CI/CD and Releases
 
-The repository includes a production loop for local and CI validation:
+Validate locally before opening a PR:
 
 ```bash
 git checkout -b feature/my-change
-scripts/production-loop.sh "feat: describe the change"
+scripts/lint.sh --check
+scripts/test.sh
+scripts/build.sh
+scripts/healthcheck.sh
 ```
 
-The loop validates lint, tests, build and healthcheck. If everything passes, it
-commits with the provided Conventional Commit message and pushes the current
-`feature/*` branch automatically.
+GitHub Actions repeats validation in a clean environment. Merges to `main`
+publish the Docker image and run the production gate. Tags matching `v*` publish
+GitHub Releases with GoReleaser artifacts and checksums.
 
 Read:
 
 - `ANALISIS_PROYECTO.md` for project analysis.
 - `GIT_WORKFLOW.md` for branch and PR rules.
 - `DEPLOYMENT.md` for deployment and rollback.
-- `LOOP.md` for the full production-loop contract.
 
 ## Contributing
 

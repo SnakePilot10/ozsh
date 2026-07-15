@@ -4,7 +4,7 @@ Fecha de analisis: 2026-07-14
 
 ## Resumen ejecutivo
 
-`ozsh` es una aplicacion CLI/TUI escrita en Go para construir, previsualizar, generar y aplicar prompts declarativos de Zsh. El proyecto ya tiene una base de produccion avanzada: tests unitarios, smoke tests, empaquetado con GoReleaser, instalador, workflows de GitHub Actions y documentacion de release. El trabajo pendiente es consolidar ese estado en un loop de produccion reproducible con calidad local, CI/CD, flujo Git, scripts operativos, Docker opcional y documentacion completa.
+`ozsh` es una aplicacion CLI/TUI escrita en Go para construir, previsualizar, generar y aplicar prompts declarativos de Zsh. El proyecto tiene una base de produccion avanzada: tests unitarios, smoke tests, empaquetado con GoReleaser, instalador, workflows de GitHub Actions, Docker opcional, healthcheck CLI y documentacion de release.
 
 ## Stack tecnologico
 
@@ -88,7 +88,7 @@ No aplica. El proyecto no usa base de datos.
 
 ## Estado Git local y remoto
 
-La copia original en `/home/snake/Proyectos/Go/ozsh` tenia `.git/` vacio y `git status` fallaba. Para evitar un loop de produccion sobre un repo local corrupto, se preparo un clon limpio en `/tmp/opencode/ozsh-clean` y se trabaja en la branch `feature/production-loop`.
+La copia original en `/home/snake/Proyectos/Go/ozsh` tenia `.git/` vacio y `git status` fallaba. Para evitar trabajar sobre un repo local corrupto, se preparo un clon limpio en `/tmp/opencode/ozsh-clean`.
 
 ## Riesgos e incertidumbres
 
