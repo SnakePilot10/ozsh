@@ -7,9 +7,78 @@ on:
 
 permissions:
   contents: write
+  security-events: write
+
+env:
+  GO_VERSION: "1.24.4"
 
 jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install lint tooling
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+
+      - name: Lint and type checks
+        run: scripts/lint.sh --check
+
+      - name: Unit, race, and smoke tests
+        run: scripts/test.sh
+
+      - name: Build
+        run: scripts/build.sh
+
+      - name: Healthcheck
+        run: scripts/healthcheck.sh
+
+  security-scan:
+    name: security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Go vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  android-termux-cross-build:
+    name: android-termux-cross-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Android arm64 build
+        run: GOOS=android GOARCH=arm64 go build -buildvcs=false ./cmd/ozsh
+
   goreleaser:
+    needs:
+      - validate
+      - security-scan
+      - android-termux-cross-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,7 +86,8 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24.4"
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser

@@ -52,7 +52,8 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-4. Confirm the GitHub Actions `release` workflow completes.
+4. Confirm the GitHub Actions `release` workflow completes. The GoReleaser job
+   must wait for validation, security scan, and Android/Termux cross-build gates.
 5. Download `checksums.txt` from the release artifacts.
 
 ## Homebrew Formula
