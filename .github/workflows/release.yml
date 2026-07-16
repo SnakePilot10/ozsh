@@ -24,6 +24,12 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Require zsh
+        run: command -v zsh
+
       - name: Install lint tooling
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 

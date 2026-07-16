@@ -63,27 +63,29 @@ ozsh_prompt_text() {
   local text="$1"
   local prompt_dollar='${ozsh_dollar}'
   local prompt_backtick='${ozsh_backtick}'
-  local prompt_backslash='${ozsh_backslash}'
   text=${text//[[:cntrl:]]/}
-  text=${text//\$/$prompt_dollar}
-  text=${text//\` + "`" + `/$prompt_backtick}
-  text=${text//\%/%%}
+  if [[ -o prompt_subst ]]; then
+    text=${text//\$/$prompt_dollar}
+    text=${text//\` + "`" + `/$prompt_backtick}
+  fi
+  if [[ -o prompt_percent ]]; then
+    text=${text//\\/\\\\}
+    text=${text//\%/%%}
+  fi
   if [[ -o prompt_bang ]]; then
     text=${text//\!/!!}
   fi
-  text=${text//\\/$prompt_backslash}
   print -r -- "$text"
 }
 
 ozsh_prompt_text_from_stdin() {
-  local text=""
-  IFS= read -r text || true
+  local text
+  text="$(cat)"
   ozsh_prompt_text "$text"
 }
 
 ozsh_dollar='$'
 ozsh_backtick='` + "`" + `'
-ozsh_backslash='\'
 `)
 	b.WriteString("\n")
 	genPluginSources(&b, cfg)
@@ -272,7 +274,7 @@ func genPluginSources(b *strings.Builder, cfg *config.Config) {
 			b.WriteString("\n")
 			helperWritten = true
 		}
-		fmt.Fprintf(b, "ozsh_source_plugin %s\n", strconv.Quote(source))
+		fmt.Fprintf(b, "ozsh_source_plugin %s\n", zshSingleQuote(source))
 	}
 	if helperWritten {
 		b.WriteString("\n")

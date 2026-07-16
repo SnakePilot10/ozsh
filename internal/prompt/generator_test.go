@@ -288,6 +288,7 @@ func TestGenerate_PluginSources(t *testing.T) {
 		{Name: "enabled", Enabled: true, Trusted: true, Source: filepath.Join(pluginRoot, "enabled"), Load: "plugin.zsh"},
 		{Name: "disabled", Enabled: false, Source: filepath.Join(pluginRoot, "disabled"), Load: "plugin.zsh"},
 		{Name: "untrusted", Enabled: true, Trusted: false, Source: filepath.Join(pluginRoot, "untrusted"), Load: "plugin.zsh"},
+		{Name: "hostile", Enabled: true, Trusted: true, Source: filepath.Join(pluginRoot, "hostile"), Load: "$(touch plugin-pwned).zsh"},
 	}
 
 	output, err := Generate(cfg)
@@ -295,7 +296,7 @@ func TestGenerate_PluginSources(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if !strings.Contains(output, `ozsh_source_plugin "`+filepath.Join(pluginRoot, "enabled", "plugin.zsh")+`"`) {
+	if !strings.Contains(output, `ozsh_source_plugin '`+filepath.Join(pluginRoot, "enabled", "plugin.zsh")+`'`) {
 		t.Errorf("Generate() output missing enabled plugin source:\n%s", output)
 	}
 	if strings.Contains(output, filepath.Join(pluginRoot, "disabled")) {
@@ -303,6 +304,12 @@ func TestGenerate_PluginSources(t *testing.T) {
 	}
 	if strings.Contains(output, filepath.Join(pluginRoot, "untrusted")) {
 		t.Errorf("Generate() output contains untrusted plugin source:\n%s", output)
+	}
+	if strings.Contains(output, "\""+filepath.Join(pluginRoot, "hostile", "$(touch plugin-pwned).zsh")+"\"") {
+		t.Fatalf("Generate() double-quoted hostile plugin path:\n%s", output)
+	}
+	if !strings.Contains(output, `ozsh_source_plugin '`+filepath.Join(pluginRoot, "hostile", "$(touch plugin-pwned).zsh")+`'`) {
+		t.Fatalf("Generate() missing single-quoted hostile plugin path:\n%s", output)
 	}
 }
 
@@ -444,15 +451,26 @@ exit 1
 	}
 
 	harness := filepath.Join(tmp, "harness.zsh")
-	harnessBody := `setopt PROMPT_SUBST PROMPT_PERCENT PROMPT_BANG
-source ./omega.zsh
+	harnessBody := `source ./omega.zsh
+emulate -L zsh
+setopt PROMPT_SUBST PROMPT_PERCENT PROMPT_BANG
 ozsh_prompt
-print -P -- "$PROMPT" > prompt-bang-on.txt
-print -P -- "$RPROMPT" > rprompt-bang-on.txt
+print -P -- "$PROMPT" > prompt-all-on.txt
+print -P -- "$RPROMPT" > rprompt-all-on.txt
 unsetopt PROMPT_BANG
 ozsh_prompt
-print -P -- "$PROMPT" > prompt-bang-off.txt
-print -P -- "$RPROMPT" > rprompt-bang-off.txt
+print -P -- "$PROMPT" > prompt-no-bang.txt
+print -P -- "$RPROMPT" > rprompt-no-bang.txt
+unsetopt PROMPT_SUBST
+setopt PROMPT_PERCENT
+ozsh_prompt
+print -P -- "$PROMPT" > prompt-no-subst.txt
+print -P -- "$RPROMPT" > rprompt-no-subst.txt
+setopt PROMPT_SUBST
+unsetopt PROMPT_PERCENT PROMPT_BANG
+ozsh_prompt
+eval "print -r -- \"$PROMPT\"" > prompt-no-percent.txt
+eval "print -r -- \"$RPROMPT\"" > rprompt-no-percent.txt
 `
 	if err := os.WriteFile(harness, []byte(harnessBody), 0600); err != nil {
 		t.Fatal(err)
@@ -476,24 +494,51 @@ print -P -- "$RPROMPT" > rprompt-bang-off.txt
 			t.Fatalf("stat sentinel %s: %v", sentinel, err)
 		}
 	}
-	for _, file := range []string{"prompt-bang-on.txt", "prompt-bang-off.txt"} {
+	for _, file := range []string{"prompt-all-on.txt", "prompt-no-bang.txt", "prompt-no-subst.txt", "prompt-no-percent.txt"} {
 		contents := readTestFile(t, filepath.Join(tmp, file))
-		assertHostilePayloadRendered(t, file, contents, "sep")
-		assertHostilePayloadRendered(t, file, contents, "git")
-		if strings.Contains(contents, "%F{") || strings.Contains(contents, "%f") {
+		assertHostilePayloadRendered(t, file, contents, "sep", 2)
+		assertHostilePayloadRendered(t, file, contents, "git", 1)
+		if file != "prompt-no-percent.txt" && (strings.Contains(contents, "%F{") || strings.Contains(contents, "%f")) {
 			t.Fatalf("%s still contains unexpanded ozsh color escapes:\n%s", file, contents)
 		}
-		if !strings.Contains(contents, "❯") {
+		if file != "prompt-no-percent.txt" && !strings.Contains(contents, "❯") {
 			t.Fatalf("%s missing controlled prompt marker:\n%s", file, contents)
 		}
 	}
-	for _, file := range []string{"rprompt-bang-on.txt", "rprompt-bang-off.txt"} {
+	for _, file := range []string{"rprompt-all-on.txt", "rprompt-no-bang.txt", "rprompt-no-subst.txt", "rprompt-no-percent.txt"} {
 		contents := readTestFile(t, filepath.Join(tmp, file))
-		assertHostilePayloadRendered(t, file, contents, "sep")
-		assertHostilePayloadRendered(t, file, contents, "venv")
-		if strings.Contains(contents, "%F{") || strings.Contains(contents, "%f") || strings.Contains(contents, "%*") {
+		assertHostilePayloadRendered(t, file, contents, "sep", 1)
+		assertHostilePayloadRendered(t, file, contents, "venv", 1)
+		if file != "rprompt-no-percent.txt" && (strings.Contains(contents, "%F{") || strings.Contains(contents, "%f") || strings.Contains(contents, "%*")) {
 			t.Fatalf("%s still contains unexpanded ozsh prompt escapes:\n%s", file, contents)
 		}
+	}
+}
+
+func TestGenerate_PromptTextReadsAllInput(t *testing.T) {
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh not available")
+	}
+	tmp := t.TempDir()
+	output, err := Generate(config.Default())
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	script := filepath.Join(tmp, "stdin.zsh")
+	body := output + `
+setopt PROMPT_SUBST PROMPT_PERCENT PROMPT_BANG
+printf 'first\nsecond\n' | ozsh_prompt_text_from_stdin > out.txt
+`
+	if err := os.WriteFile(script, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("zsh", "-f", script)
+	cmd.Dir = tmp
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("zsh stdin harness failed: %v\n%s", err, out)
+	}
+	if got, want := readTestFile(t, filepath.Join(tmp, "out.txt")), "firstsecond\n"; got != want {
+		t.Fatalf("ozsh_prompt_text_from_stdin output = %q, want %q", got, want)
 	}
 }
 
@@ -547,30 +592,19 @@ print -P -- "$PROMPT" > dynamic.txt
 	}
 	contents := readTestFile(t, filepath.Join(tmp, "dynamic.txt"))
 	for _, prefix := range []string{"node", "go", "battery"} {
-		assertHostilePayloadRendered(t, "dynamic.txt", contents, prefix)
+		assertHostilePayloadRendered(t, "dynamic.txt", contents, prefix, 1)
 	}
 }
 
 func hostilePromptPayload(prefix string) string {
-	return "$(touch " + prefix + "-cmd) `touch " + prefix + "-bt` ${HOME} $[1+1] $((1+1)) %n %~ ! \\\\ literal"
+	return "<BEGIN-" + prefix + ">$(touch " + prefix + "-cmd) `touch " + prefix + "-bt` ${HOME} $[1+1] $((1+1)) %n %~ ! \\ literal<END-" + prefix + ">"
 }
 
-func assertHostilePayloadRendered(t *testing.T, label, contents, prefix string) {
+func assertHostilePayloadRendered(t *testing.T, label, contents, prefix string, wantCount int) {
 	t.Helper()
-	for _, want := range []string{
-		"$(touch " + prefix + "-cmd)",
-		"`touch " + prefix + "-bt`",
-		"${HOME}",
-		"$[1+1]",
-		"$((1+1))",
-		"%n",
-		"%~",
-		"!",
-		`\ literal`,
-	} {
-		if !strings.Contains(contents, want) {
-			t.Fatalf("%s missing literal %q:\n%s", label, want, contents)
-		}
+	want := hostilePromptPayload(prefix)
+	if count := strings.Count(contents, want); count != wantCount {
+		t.Fatalf("%s contains payload %q %d times, want %d:\n%s", label, prefix, count, wantCount, contents)
 	}
 }
 
