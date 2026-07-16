@@ -26,6 +26,7 @@ var (
 const (
 	gitCommandTimeout = 30 * time.Second
 	gitInspectTimeout = 10 * time.Second
+	buildTimeout      = 60 * time.Second
 )
 
 func main() {
@@ -116,6 +117,63 @@ func runUpdate(args []string) {
 		updateCommandError("update", ctx, err, out)
 	}
 	fmt.Print(string(out))
+	executable, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "update install error: cannot locate current executable: %v\n", err)
+		os.Exit(1)
+	}
+	if err := installUpdatedBinary(installDir, executable); err != nil {
+		fmt.Fprintf(os.Stderr, "update install error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("updated %s\n", executable)
+}
+
+func installUpdatedBinary(installDir, executable string) error {
+	if executable == "" {
+		return fmt.Errorf("current executable path is empty")
+	}
+	executable, err := filepath.Abs(executable)
+	if err != nil {
+		return fmt.Errorf("cannot resolve current executable path: %w", err)
+	}
+	info, err := os.Stat(executable)
+	if err != nil {
+		return fmt.Errorf("cannot stat current executable: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("current executable path is a directory: %s", executable)
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(executable), ".ozsh-update-*")
+	if err != nil {
+		return fmt.Errorf("cannot create temporary binary next to current executable: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("cannot close temporary binary: %w", err)
+	}
+	defer os.Remove(tmpPath)
+
+	ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-o", tmpPath, "./cmd/ozsh")
+	cmd.Dir = installDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("go build timed out after %s", buildTimeout)
+		}
+		return fmt.Errorf("go build failed: %w\n%s", err, out)
+	}
+	if err := os.Chmod(tmpPath, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("cannot set updated binary permissions: %w", err)
+	}
+	if err := os.Rename(tmpPath, executable); err != nil {
+		return fmt.Errorf("cannot replace current executable: %w", err)
+	}
+	return nil
 }
 
 func updateCommandError(action string, ctx context.Context, err error, output []byte) {

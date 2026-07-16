@@ -342,6 +342,64 @@ func TestUpdateCheckReportsAvailableUpdate(t *testing.T) {
 	}
 }
 
+func TestInstallUpdatedBinaryReplacesExecutable(t *testing.T) {
+	tmp := t.TempDir()
+	installDir := filepath.Join(tmp, "install")
+	binDir := filepath.Join(tmp, "bin")
+	fakeBin := filepath.Join(tmp, "fake-bin")
+	for _, dir := range []string{installDir, binDir, fakeBin} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("MkdirAll(%s) error = %v", dir, err)
+		}
+	}
+	executable := filepath.Join(binDir, "ozsh")
+	if err := os.WriteFile(executable, []byte("old binary\n"), 0755); err != nil {
+		t.Fatalf("WriteFile(executable) error = %v", err)
+	}
+	fakeGo := filepath.Join(fakeBin, "go")
+	if err := os.WriteFile(fakeGo, []byte(`#!/bin/sh
+set -eu
+out=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [ -z "$out" ]; then
+  echo "missing -o" >&2
+  exit 2
+fi
+printf 'new binary\n' > "$out"
+`), 0755); err != nil {
+		t.Fatalf("WriteFile(fake go) error = %v", err)
+	}
+	t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := installUpdatedBinary(installDir, executable); err != nil {
+		t.Fatalf("installUpdatedBinary() error = %v", err)
+	}
+	updated, err := os.ReadFile(executable)
+	if err != nil {
+		t.Fatalf("ReadFile(executable) error = %v", err)
+	}
+	if string(updated) != "new binary\n" {
+		t.Fatalf("executable contents = %q, want updated binary", updated)
+	}
+	info, err := os.Stat(executable)
+	if err != nil {
+		t.Fatalf("Stat(executable) error = %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0755 {
+		t.Fatalf("executable permissions = %v, want 0755", got)
+	}
+}
+
 func BenchmarkRunApply(b *testing.B) {
 	home := b.TempDir()
 	b.Setenv("HOME", home)

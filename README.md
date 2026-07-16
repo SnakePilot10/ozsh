@@ -71,8 +71,11 @@ ozsh update --check
 ozsh update
 ```
 
-Use `--verbose` or `-v` for diagnostic output. Logs are stored at
-`~/.config/ozsh/ozsh.log` and rotate automatically.
+Use `--verbose` or `-v` for debug output. Logs are written to
+`~/.config/ozsh/ozsh.log` and rotate at 5MB with three retained backups.
+`ozsh update --check` fetches the source checkout and reports when a new version
+is available. `ozsh update` fast-forwards the source checkout, rebuilds ozsh,
+and replaces the currently running binary.
 
 ## Configuration
 
