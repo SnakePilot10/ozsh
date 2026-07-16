@@ -19,7 +19,9 @@ var templateFS embed.FS
 // create hard-to-reproduce side effects after preview or apply operations.
 func Generate(cfg *config.Config) (string, error) {
 	cfg = cloneConfig(cfg)
-	config.FillDefaults(cfg)
+	if err := config.Validate(cfg); err != nil {
+		return "", fmt.Errorf("invalid config: %w", err)
+	}
 	if rendered, ok, err := generateFromTemplate(cfg); ok || err != nil {
 		return rendered, err
 	}
@@ -45,14 +47,43 @@ func Generate(cfg *config.Config) (string, error) {
   shift
   local out=""
   local part
+  local first=1
   for part in "$@"; do
-    if [[ -n "$out" ]]; then
+    if (( first )); then
+      first=0
+    else
       out+="$sep"
     fi
     out+="$part"
   done
   print -r -- "$out"
 }
+
+ozsh_prompt_text() {
+  local text="$1"
+  local prompt_dollar='${ozsh_dollar}'
+  local prompt_backtick='${ozsh_backtick}'
+  local prompt_backslash='${ozsh_backslash}'
+  text=${text//[[:cntrl:]]/}
+  text=${text//\$/$prompt_dollar}
+  text=${text//\` + "`" + `/$prompt_backtick}
+  text=${text//\%/%%}
+  if [[ -o prompt_bang ]]; then
+    text=${text//\!/!!}
+  fi
+  text=${text//\\/$prompt_backslash}
+  print -r -- "$text"
+}
+
+ozsh_prompt_text_from_stdin() {
+  local text=""
+  IFS= read -r text || true
+  ozsh_prompt_text "$text"
+}
+
+ozsh_dollar='$'
+ozsh_backtick='` + "`" + `'
+ozsh_backslash='\'
 `)
 	b.WriteString("\n")
 	genPluginSources(&b, cfg)
@@ -128,7 +159,9 @@ func Generate(cfg *config.Config) (string, error) {
 
 	b.WriteString("\n")
 	sep := zshSingleQuote(cfg.Prompt.Separator)
-	fmt.Fprintf(&b, "  local ozsh_separator=%s\n", sep)
+	fmt.Fprintf(&b, "  local ozsh_raw_separator=%s\n", sep)
+	b.WriteString("  local ozsh_separator\n")
+	b.WriteString("  ozsh_separator=\"$(ozsh_prompt_text \"$ozsh_raw_separator\")\"\n")
 	if cfg.Prompt.Newline {
 		b.WriteString("  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"$'\\n❯ '\n")
 	} else {
@@ -164,7 +197,7 @@ func genSegment(b *strings.Builder, target, name string, cfg config.SegmentConfi
 		fmt.Fprintf(b, "  %s+=(\"%s%%~%%f\")\n", target, fgOpen(cfg.FG))
 	case "git":
 		fmt.Fprintf(b, `  local git_branch
-  git_branch="$(ozsh_git_branch)"
+  git_branch="$(ozsh_git_branch | ozsh_prompt_text_from_stdin)"
   [[ -n "$git_branch" ]] && %s+=("%s${git_branch}%%f")
 `, target, fgOpen(cfg.FG))
 	case "status":
@@ -187,22 +220,22 @@ func genSegment(b *strings.Builder, target, name string, cfg config.SegmentConfi
 		fmt.Fprintf(b, "  %s+=(\"%s%%m%%f\")\n", target, fgOpen(cfg.FG))
 	case "venv":
 		fmt.Fprintf(b, `  local venv_name
-  venv_name="$(ozsh_venv_name)"
+  venv_name="$(ozsh_venv_name | ozsh_prompt_text_from_stdin)"
   [[ -n "$venv_name" ]] && %s+=("%s${venv_name}%%f")
 `, target, fgOpen(cfg.FG))
 	case "node":
 		fmt.Fprintf(b, `  local node_version
-  node_version="$(ozsh_node_version)"
+  node_version="$(ozsh_node_version | ozsh_prompt_text_from_stdin)"
   [[ -n "$node_version" ]] && %s+=("%s${node_version}%%f")
 `, target, fgOpen(cfg.FG))
 	case "go":
 		fmt.Fprintf(b, `  local go_version
-  go_version="$(ozsh_go_version)"
+  go_version="$(ozsh_go_version | ozsh_prompt_text_from_stdin)"
   [[ -n "$go_version" ]] && %s+=("%s${go_version}%%f")
 `, target, fgOpen(cfg.FG))
 	case "battery":
 		fmt.Fprintf(b, `  local battery_level
-  battery_level="$(ozsh_battery_level)"
+  battery_level="$(ozsh_battery_level | ozsh_prompt_text_from_stdin)"
   [[ -n "$battery_level" ]] && %s+=("%s${battery_level}%%f")
 `, target, fgOpen(cfg.FG))
 	case "jobs":

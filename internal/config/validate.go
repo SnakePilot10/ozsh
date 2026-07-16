@@ -25,6 +25,7 @@ var (
 	hexColorPattern    = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 	pluginNamePattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
 	promptStylePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	controlCharPattern = regexp.MustCompile(`[\x00-\x1f\x7f]`)
 )
 
 func Validate(cfg *Config) error {
@@ -63,6 +64,9 @@ func Validate(cfg *Config) error {
 	}
 	if cfg.Prompt.Separator == "" {
 		return fmt.Errorf("prompt separator cannot be empty")
+	}
+	if controlCharPattern.MatchString(cfg.Prompt.Separator) {
+		return fmt.Errorf("prompt separator cannot contain control characters")
 	}
 	if !promptStylePattern.MatchString(cfg.Prompt.Style) {
 		return fmt.Errorf("prompt style must contain only letters, numbers, underscores, or hyphens")

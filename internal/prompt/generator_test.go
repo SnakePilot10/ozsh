@@ -141,7 +141,8 @@ func TestGenerate_ZshSyntaxShape(t *testing.T) {
 		"ozsh_prompt() {",
 		"  local last_status=\"$?\"",
 		"  local parts=()",
-		"  local ozsh_separator='  '",
+		"ozsh_prompt_text() {",
+		"  local ozsh_raw_separator='  '",
 		"  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"$'\\n❯ '",
 		"}",
 		"precmd_functions+=(ozsh_prompt)",
@@ -251,17 +252,42 @@ func TestGenerate_UsesConfiguredSeparator(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if !strings.Contains(output, `local ozsh_separator=' | '`) {
+	if !strings.Contains(output, `local ozsh_raw_separator=' | '`) {
 		t.Errorf("Generate() output missing custom separator:\n%s", output)
 	}
 }
 
+func TestGenerate_ValidatesConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		mut  func(*config.Config)
+	}{
+		{name: "invalid style", mut: func(cfg *config.Config) { cfg.Prompt.Style = "../bad" }},
+		{name: "invalid separator control", mut: func(cfg *config.Config) { cfg.Prompt.Separator = "bad\nsep" }},
+		{name: "invalid color", mut: func(cfg *config.Config) {
+			cfg.Prompt.Segments["user"] = config.SegmentConfig{Enabled: true, FG: "hotpink"}
+		}},
+		{name: "unknown segment", mut: func(cfg *config.Config) { cfg.Prompt.Order = append(cfg.Prompt.Order, "missing") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Default()
+			tc.mut(cfg)
+			if _, err := Generate(cfg); err == nil {
+				t.Fatal("Generate() error = nil, want invalid config error")
+			}
+		})
+	}
+}
+
 func TestGenerate_PluginSources(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	cfg := config.Default()
+	pluginRoot := filepath.Join(home, ".config", "ozsh", "plugins")
 	cfg.Plugins.Items = []config.PluginItem{
-		{Name: "enabled", Enabled: true, Trusted: true, Source: "/tmp/plugin", Load: "plugin.zsh"},
-		{Name: "disabled", Enabled: false, Source: "/tmp/disabled.zsh"},
-		{Name: "untrusted", Enabled: true, Trusted: false, Source: "/tmp/untrusted.zsh"},
+		{Name: "enabled", Enabled: true, Trusted: true, Source: filepath.Join(pluginRoot, "enabled"), Load: "plugin.zsh"},
+		{Name: "disabled", Enabled: false, Source: filepath.Join(pluginRoot, "disabled"), Load: "plugin.zsh"},
+		{Name: "untrusted", Enabled: true, Trusted: false, Source: filepath.Join(pluginRoot, "untrusted"), Load: "plugin.zsh"},
 	}
 
 	output, err := Generate(cfg)
@@ -269,14 +295,41 @@ func TestGenerate_PluginSources(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if !strings.Contains(output, `ozsh_source_plugin "/tmp/plugin/plugin.zsh"`) {
+	if !strings.Contains(output, `ozsh_source_plugin "`+filepath.Join(pluginRoot, "enabled", "plugin.zsh")+`"`) {
 		t.Errorf("Generate() output missing enabled plugin source:\n%s", output)
 	}
-	if strings.Contains(output, "/tmp/disabled.zsh") {
+	if strings.Contains(output, filepath.Join(pluginRoot, "disabled")) {
 		t.Errorf("Generate() output contains disabled plugin source:\n%s", output)
 	}
-	if strings.Contains(output, "/tmp/untrusted.zsh") {
+	if strings.Contains(output, filepath.Join(pluginRoot, "untrusted")) {
 		t.Errorf("Generate() output contains untrusted plugin source:\n%s", output)
+	}
+}
+
+func TestGenerate_ZshJoinPreservesEmptyParts(t *testing.T) {
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh not available")
+	}
+	tmp := t.TempDir()
+	output, err := Generate(config.Default())
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	script := filepath.Join(tmp, "join.zsh")
+	body := output + `
+print -r -- "$(ozsh_join ' | ' '' 'second')"
+print -r -- "$(ozsh_join ' | ' 'first' '' 'third')"
+print -r -- "$(ozsh_join ' | ' '')"
+`
+	if err := os.WriteFile(script, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("zsh", "-f", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("zsh join script failed: %v\n%s", err, out)
+	}
+	if got, want := string(out), " | second\nfirst |  | third\n\n"; got != want {
+		t.Fatalf("ozsh_join output = %q, want %q", got, want)
 	}
 }
 
@@ -337,6 +390,197 @@ func TestGenerate_HostileSeparatorDoesNotExecute(t *testing.T) {
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("stat sentinel %s: %v", separatorSentinel, err)
 	}
+}
+
+func TestGenerate_PromptSubstRendersUntrustedDataLiterally(t *testing.T) {
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh not available")
+	}
+	tmp := t.TempDir()
+	fakeBin := filepath.Join(tmp, "bin")
+	if err := os.Mkdir(fakeBin, 0755); err != nil {
+		t.Fatal(err)
+	}
+	gitScript := filepath.Join(fakeBin, "git")
+	if err := os.WriteFile(gitScript, []byte(`#!/bin/sh
+case "$1 $2" in
+  "rev-parse --is-inside-work-tree") exit 0 ;;
+esac
+case "$1 $2 $3" in
+  "symbolic-ref --short HEAD") cat "$OZSH_FAKE_GIT_BRANCH_FILE"; exit 0 ;;
+esac
+exit 1
+`), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	sepPayload := hostilePromptPayload("sep")
+	gitPayload := hostilePromptPayload("git")
+	venvPayload := hostilePromptPayload("venv")
+	gitPayloadFile := filepath.Join(tmp, "git-payload.txt")
+	if err := os.WriteFile(gitPayloadFile, []byte(gitPayload+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Prompt.Separator = sepPayload
+	cfg.Prompt.Order = []string{"user", "cwd", "git"}
+	cfg.Prompt.RightPrompt = true
+	cfg.Prompt.RightOrder = []string{"venv", "time"}
+	for _, name := range append(cfg.Prompt.Order, cfg.Prompt.RightOrder...) {
+		segment := cfg.Prompt.Segments[name]
+		segment.Enabled = true
+		cfg.Prompt.Segments[name] = segment
+	}
+	output, err := Generate(cfg)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	omega := filepath.Join(tmp, "omega.zsh")
+	if err := os.WriteFile(omega, []byte(output), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("zsh", "-n", omega).CombinedOutput(); err != nil {
+		t.Fatalf("zsh -n failed: %v\n%s\n%s", err, out, output)
+	}
+
+	harness := filepath.Join(tmp, "harness.zsh")
+	harnessBody := `setopt PROMPT_SUBST PROMPT_PERCENT PROMPT_BANG
+source ./omega.zsh
+ozsh_prompt
+print -P -- "$PROMPT" > prompt-bang-on.txt
+print -P -- "$RPROMPT" > rprompt-bang-on.txt
+unsetopt PROMPT_BANG
+ozsh_prompt
+print -P -- "$PROMPT" > prompt-bang-off.txt
+print -P -- "$RPROMPT" > rprompt-bang-off.txt
+`
+	if err := os.WriteFile(harness, []byte(harnessBody), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("zsh", "-f", harness)
+	cmd.Dir = tmp
+	cmd.Env = append(os.Environ(),
+		"HOME="+tmp,
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"LC_ALL=C",
+		"OZSH_FAKE_GIT_BRANCH_FILE="+gitPayloadFile,
+		"VIRTUAL_ENV="+filepath.Join(tmp, venvPayload),
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("zsh harness failed: %v\n%s\n%s", err, out, output)
+	}
+	for _, sentinel := range []string{"sep-cmd", "sep-bt", "git-cmd", "git-bt", "venv-cmd", "venv-bt"} {
+		if _, err := os.Stat(filepath.Join(tmp, sentinel)); err == nil {
+			t.Fatalf("hostile prompt payload executed sentinel %s\n%s", sentinel, output)
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("stat sentinel %s: %v", sentinel, err)
+		}
+	}
+	for _, file := range []string{"prompt-bang-on.txt", "prompt-bang-off.txt"} {
+		contents := readTestFile(t, filepath.Join(tmp, file))
+		assertHostilePayloadRendered(t, file, contents, "sep")
+		assertHostilePayloadRendered(t, file, contents, "git")
+		if strings.Contains(contents, "%F{") || strings.Contains(contents, "%f") {
+			t.Fatalf("%s still contains unexpanded ozsh color escapes:\n%s", file, contents)
+		}
+		if !strings.Contains(contents, "❯") {
+			t.Fatalf("%s missing controlled prompt marker:\n%s", file, contents)
+		}
+	}
+	for _, file := range []string{"rprompt-bang-on.txt", "rprompt-bang-off.txt"} {
+		contents := readTestFile(t, filepath.Join(tmp, file))
+		assertHostilePayloadRendered(t, file, contents, "sep")
+		assertHostilePayloadRendered(t, file, contents, "venv")
+		if strings.Contains(contents, "%F{") || strings.Contains(contents, "%f") || strings.Contains(contents, "%*") {
+			t.Fatalf("%s still contains unexpanded ozsh prompt escapes:\n%s", file, contents)
+		}
+	}
+}
+
+func TestGenerate_DynamicCommandSegmentsUsePromptText(t *testing.T) {
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh not available")
+	}
+	tmp := t.TempDir()
+	cfg := config.Default()
+	cfg.Prompt.Order = []string{"node", "go", "battery"}
+	for _, name := range cfg.Prompt.Order {
+		segment := cfg.Prompt.Segments[name]
+		segment.Enabled = true
+		cfg.Prompt.Segments[name] = segment
+	}
+	output, err := Generate(cfg)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	omega := filepath.Join(tmp, "omega.zsh")
+	if err := os.WriteFile(omega, []byte(output), 0600); err != nil {
+		t.Fatal(err)
+	}
+	harness := filepath.Join(tmp, "dynamic.zsh")
+	harnessBody := `setopt PROMPT_SUBST PROMPT_PERCENT PROMPT_BANG
+source ./omega.zsh
+ozsh_node_version() { print -r -- "$OZSH_FAKE_NODE" }
+ozsh_go_version() { print -r -- "$OZSH_FAKE_GO" }
+ozsh_battery_level() { print -r -- "$OZSH_FAKE_BATTERY" }
+ozsh_prompt
+print -P -- "$PROMPT" > dynamic.txt
+`
+	if err := os.WriteFile(harness, []byte(harnessBody), 0600); err != nil {
+		t.Fatal(err)
+	}
+	nodePayload := hostilePromptPayload("node")
+	goPayload := hostilePromptPayload("go")
+	batteryPayload := hostilePromptPayload("battery")
+	cmd := exec.Command("zsh", "-f", harness)
+	cmd.Dir = tmp
+	cmd.Env = append(os.Environ(), "HOME="+tmp, "LC_ALL=C", "OZSH_FAKE_NODE="+nodePayload, "OZSH_FAKE_GO="+goPayload, "OZSH_FAKE_BATTERY="+batteryPayload)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("zsh dynamic harness failed: %v\n%s", err, out)
+	}
+	for _, sentinel := range []string{"node-cmd", "node-bt", "go-cmd", "go-bt", "battery-cmd", "battery-bt"} {
+		if _, err := os.Stat(filepath.Join(tmp, sentinel)); err == nil {
+			t.Fatalf("dynamic prompt payload executed sentinel %s\n%s", sentinel, output)
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("stat sentinel %s: %v", sentinel, err)
+		}
+	}
+	contents := readTestFile(t, filepath.Join(tmp, "dynamic.txt"))
+	for _, prefix := range []string{"node", "go", "battery"} {
+		assertHostilePayloadRendered(t, "dynamic.txt", contents, prefix)
+	}
+}
+
+func hostilePromptPayload(prefix string) string {
+	return "$(touch " + prefix + "-cmd) `touch " + prefix + "-bt` ${HOME} $[1+1] $((1+1)) %n %~ ! \\\\ literal"
+}
+
+func assertHostilePayloadRendered(t *testing.T, label, contents, prefix string) {
+	t.Helper()
+	for _, want := range []string{
+		"$(touch " + prefix + "-cmd)",
+		"`touch " + prefix + "-bt`",
+		"${HOME}",
+		"$[1+1]",
+		"$((1+1))",
+		"%n",
+		"%~",
+		"!",
+		`\ literal`,
+	} {
+		if !strings.Contains(contents, want) {
+			t.Fatalf("%s missing literal %q:\n%s", label, want, contents)
+		}
+	}
+}
+
+func readTestFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", path, err)
+	}
+	return string(data)
 }
 
 func TestGenerate_DisableHeavySegmentsSkipsRuntimeCommands(t *testing.T) {

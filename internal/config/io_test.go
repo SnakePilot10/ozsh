@@ -134,6 +134,16 @@ func TestValidateRejectsInvalidPromptStyle(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsControlCharactersInPromptSeparator(t *testing.T) {
+	for _, separator := range []string{"bad\nsep", "bad\rsep", "bad\x1bsep", "bad\x00sep"} {
+		cfg := Default()
+		cfg.Prompt.Separator = separator
+		if err := Validate(cfg); err == nil {
+			t.Fatalf("Validate() error = nil for separator %q, want control character error", separator)
+		}
+	}
+}
+
 func TestValidateAcceptsNamedAndHexColors(t *testing.T) {
 	cfg := Default()
 	cfg.Prompt.Segments["user"] = SegmentConfig{Enabled: true, FG: "cyan", BG: "#00f5ff"}

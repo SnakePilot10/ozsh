@@ -55,16 +55,13 @@ func TestPluginSourcePathRequiresConcreteShellFile(t *testing.T) {
 	}
 }
 
-func TestGenerateSkipsTrustedPluginWithoutLoadFile(t *testing.T) {
+func TestGenerateRejectsTrustedPluginWithoutLoadFile(t *testing.T) {
 	cfg := config.Default()
 	cfg.Plugins.Items = []config.PluginItem{{
 		Name: "legacy", Enabled: true, Trusted: true, Source: "/tmp/legacy",
 	}}
-	output, err := Generate(cfg)
-	if err != nil {
-		t.Fatalf("Generate() error = %v", err)
-	}
-	if strings.Contains(output, "ozsh_source_plugin") || strings.Contains(output, "/tmp/legacy") {
-		t.Fatalf("Generate() sourced a plugin directory:\n%s", output)
+	_, err := Generate(cfg)
+	if err == nil || !strings.Contains(err.Error(), "invalid config") {
+		t.Fatalf("Generate() error = %v, want config validation error", err)
 	}
 }
