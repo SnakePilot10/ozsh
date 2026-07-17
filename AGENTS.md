@@ -1,33 +1,44 @@
-## Proyecto
+# Repository guidance for agents
 
-`ozsh` es una aplicacion Go CLI/TUI para construir, previsualizar, generar y aplicar prompts Zsh declarativos.
+## Project
 
-Stack:
+`ozsh` is a Go CLI/TUI for configuring, previewing, generating, and safely
+applying declarative Zsh prompts.
 
-- Go 1.24+.
-- Bubble Tea, Bubbles y Lip Gloss para TUI.
-- TOML para configuracion.
-- GoReleaser, Homebrew y AUR para packaging.
-- GitHub Actions para CI/CD.
+Core stack:
 
-## Reglas para agentes
+- Go 1.24+
+- Bubble Tea, Bubbles, and Lip Gloss
+- TOML configuration
+- GoReleaser, Homebrew, and AUR packaging
+- GitHub Actions CI
 
-- Para preguntas de arquitectura o relaciones, usa graphify si `graphify-out/graph.json` existe: `graphify query "<pregunta>"`.
-- Despues de modificar codigo o documentacion, ejecuta `graphify update .` si graphify esta disponible y el grafo existe.
-- No hardcodees secrets, tokens, rutas privadas ni credenciales.
-- No pushees directo a `main`.
-- No uses `git push --force` sin aprobacion explicita.
-- No cambies comportamiento de `.zshrc` sin actualizar o ejecutar smoke tests.
-- Toda prueba que toque HOME, `.zshrc` o plugins debe usar un HOME temporal.
-- Mantener Conventional Commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `ci:`, `build:`.
-- Preferir cambios pequenos y verificables.
-- Si hay incertidumbre, documentarla en `PENDIENTES.md`.
+## Working rules
 
-## Comandos de validacion
+- Use Graphify for architecture questions when `graphify-out/graph.json` exists.
+- Refresh the Graphify index after meaningful code or documentation changes when the tool is available.
+- Never hard-code secrets, tokens, credentials, or private local paths.
+- Do not push directly to `main`.
+- Do not force-push without explicit approval.
+- Keep changes small, focused, and compatible with Conventional Commits.
+- Do not change `.zshrc` behavior without updating and running the relevant tests.
+- Any test that touches `HOME`, `.zshrc`, generated shell files, or plugins must use an isolated temporary home directory.
+- Record unresolved uncertainty in the pull request or a focused GitHub issue, not in ad hoc root-level status files.
+
+## Validation
+
+Run the checks relevant to the change:
 
 ```bash
 scripts/lint.sh --check
 scripts/test.sh
 scripts/build.sh
 scripts/healthcheck.sh
+```
+
+For release or installer changes, also run:
+
+```bash
+scripts/release-smoke.sh
+scripts/install-smoke.sh
 ```
