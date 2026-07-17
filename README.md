@@ -1,25 +1,24 @@
 # ozsh
 
-> A declarative prompt builder for Zsh. Config -> Preview -> Generate -> Apply.
+> A declarative prompt builder for Zsh: configure, preview, generate, and apply.
 
-## Current Status
+## Status
 
-Beta funcional, no v1.0. La mayoria del CLI y la TUI estan implementados, y la
-suite local pasa al 100%. Quedan validaciones externas antes de declarar v1.0.
-Ver `STATUS.md` antes de probar cambios grandes.
+`ozsh` is functional beta software. The CLI, Bubble Tea TUI, prompt generator,
+themes, manual plugin support, backups, installer, and release packaging are in
+place. The project remains pre-v1.0 while it receives broader testing on Linux,
+macOS, and Termux.
 
-## Philosophy
+## Principles
 
-- **Motor first, TUI later.** The CLI engine works before any visual interface.
-- **Never touch `.zshrc` without backup.** Every `apply` and `reset` creates a timestamped backup.
-- **Manual plugins, no magic.** ozsh can source plugin files, but does not manage plugin runtime behavior.
-- **Termux is a first-class citizen.** Detected automatically, no shell switching magic.
+- **Safe by default.** Managed `.zshrc` changes are atomic and backed up.
+- **Preview before apply.** Configuration can be inspected without touching the shell.
+- **Manual plugins.** Third-party shell code is never trusted implicitly.
+- **Termux matters.** Android is treated as a supported environment, not an afterthought.
 
 ## Installation
 
-Requires Go 1.24+.
-
-Download a versioned binary from GitHub Releases when available, or install from source:
+Go 1.24 or newer is required for source installations.
 
 ```bash
 git clone https://github.com/SnakePilot10/ozsh.git
@@ -27,20 +26,23 @@ cd ozsh
 ./install.sh
 ```
 
-Unattended source install:
+Unattended installation:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SnakePilot10/ozsh/main/install.sh | bash -s -- --yes --update-path --apply
+curl -fsSL https://raw.githubusercontent.com/SnakePilot10/ozsh/main/install.sh \
+  | bash -s -- --yes --update-path --apply
 ```
 
-Installer environment:
+Installer variables:
 
-- `OZSH_REPO` - Git URL or local path to clone
-- `OZSH_INSTALL_DIR` - source checkout directory
-- `OZSH_BIN_DIR` - binary install directory
-- `OZSH_YES=1` - install missing dependencies where supported
-- `OZSH_APPLY=1` - run `ozsh apply` after installation
-- `OZSH_UPDATE_PATH=1` - append the binary directory to `.zshrc` when missing
+- `OZSH_REPO`: Git URL or local source path.
+- `OZSH_INSTALL_DIR`: source checkout directory.
+- `OZSH_BIN_DIR`: binary destination.
+- `OZSH_YES=1`: allow supported dependency installation.
+- `OZSH_APPLY=1`: apply the generated prompt after installation.
+- `OZSH_UPDATE_PATH=1`: add the binary directory to `.zshrc` when needed.
+
+Versioned binaries are published through GitHub Releases when a `v*` tag is cut.
 
 ## Commands
 
@@ -50,28 +52,31 @@ ozsh preview
 ozsh preview --real
 ozsh apply
 ozsh reset
+
 ozsh theme list
 ozsh theme preview cyber-cyan
 ozsh theme apply cyber-cyan
+
 ozsh plugin list
 ozsh plugin add https://github.com/user/plugin.git plugin.zsh
 ozsh plugin enable plugin
 ozsh plugin disable plugin
 ozsh plugin trust plugin
+ozsh plugin untrust plugin
 ozsh plugin remove plugin
+
 ozsh tui
+ozsh version
 ozsh update --check
 ozsh update
 ```
 
-Use `--verbose` or `-v` for debug output. Logs are written to
-`~/.config/ozsh/ozsh.log` and rotate at 5MB with three retained backups.
-`ozsh update --check` fetches the source checkout and reports when a new version
-is available.
+Use `--verbose` or `-v` for diagnostic output. Logs are stored at
+`~/.config/ozsh/ozsh.log` and rotate automatically.
 
 ## Configuration
 
-Config lives at `~/.config/ozsh/config.toml`.
+Configuration lives at `~/.config/ozsh/config.toml`.
 
 ```toml
 [prompt]
@@ -86,28 +91,21 @@ right_order = []
 
 Available segments:
 
-- `user` - current username (`%n`)
-- `host` - hostname (`%m`)
-- `cwd` - current directory (`%~`)
-- `git` - branch when inside a Git repository
-- `status` - last command status
-- `time` - current time (`%*`)
-- `venv` - active Python virtualenv
-- `node` - Node.js version when `package.json` exists
-- `go` - Go version when `go.mod` exists
-- `battery` - Linux or Termux battery level
-- `jobs` - background job count
+- `user`: current username.
+- `host`: hostname.
+- `cwd`: current directory.
+- `git`: branch inside a Git repository.
+- `status`: previous command status.
+- `time`: current time.
+- `venv`: active Python virtual environment.
+- `node`: Node.js version when `package.json` exists.
+- `go`: Go version when `go.mod` exists.
+- `battery`: Linux or Termux battery level.
+- `jobs`: background job count.
 
-Colors accept Zsh names (`cyan`, `red`, `default`) or hex values like
-`#00f5ff`. Hex colors are emitted into generated Zsh and rendered as truecolor
-ANSI in `ozsh preview`.
-
-Right prompt segments are configured with `right_order`; enabling
-`right_prompt = true` writes `RPROMPT`.
-
-Set `disable_heavy_segments = true` to skip runtime-heavy segments (`git`,
-`node`, `go`, and `battery`) in generated prompts and previews. The TUI also
-uses this lighter preview mode automatically on Termux.
+Colors accept Zsh color names or six-digit hex values such as `#00f5ff`.
+`right_order` controls `RPROMPT`. Set `disable_heavy_segments = true` to skip
+runtime-heavy segments such as Git, Node.js, Go, and battery detection.
 
 ## Themes
 
@@ -117,85 +115,38 @@ Built-in presets:
 - `neon-red`
 - `matrix-green`
 
-Theme files also live in `presets/*.toml` for humans and packagers.
+Preset files are stored under `presets/` for users and packagers.
 
-## Prompt Examples
+## Manual plugins
 
-Minimal:
+Plugins are cloned into `~/.config/ozsh/plugins/`. Only HTTPS repository URLs
+are accepted. A plugin load path must be a relative `.zsh` or `.sh` file.
+Generated shell code sources a plugin only when it is enabled, explicitly
+trusted, readable, a regular file under `$HOME`, and not a symlink.
 
-```text
-snake  ~/dev/ozsh
-❯
-```
-
-With Git status:
-
-```text
-snake  ~/dev/ozsh  main +  ✘ 1
-❯
-```
-
-With right prompt:
-
-```text
-snake  ~/dev/ozsh  main +                  14:52
-❯
-```
-
-## Manual Plugins
-
-Plugins are cloned into `~/.config/ozsh/plugins/`. Only `https` plugin URLs are
-accepted. Plugin load files must be relative `.zsh` or `.sh` paths. Generated
-`omega.zsh` sources plugin files only when they are enabled, readable, regular
-files under `$HOME`, not symlinks, and explicitly trusted with
-`ozsh plugin trust <name>`.
+Trusting a plugin means allowing third-party code to execute in Zsh. Review it
+before running `ozsh plugin trust <name>`.
 
 ## TUI
 
 `ozsh tui` opens a Bubble Tea interface with dashboard, prompt builder, editable
-preview, apply, doctor, themes, and plugins tabs. The Apply tab shows
-the planned `.zshrc` diff first and requires confirmation before writing.
-
-## Screencasts
-
-An asciinema-compatible screencast lives at `docs/screencasts/preview.cast`.
-It can be converted to a GIF with `agg`.
+preview, apply, doctor, themes, and plugins views. The apply flow shows the
+planned `.zshrc` diff and requires confirmation before writing.
 
 ## Templates
 
-If `templates/<prompt.style>.zsh.tmpl` exists, ozsh renders it with Go
-`text/template`. Otherwise it uses the built-in generator.
+Compile-time prompt templates live under `internal/prompt/templates/` and are
+embedded into the binary. When no embedded template matches `prompt.style`,
+`ozsh` uses its built-in generator.
 
 ## Termux
 
-Termux is detected automatically via `TERMUX_VERSION` or `PREFIX`. The installer
-uses `pkg install` for missing `golang`, `zsh`, and `git` when available.
-
-ozsh does not run `chsh` on Termux. Run `ozsh apply` or install with
-`OZSH_APPLY=1`, start `zsh`, and let the managed block in `~/.zshrc` source
+Termux is detected through `TERMUX_VERSION` or `PREFIX`. The installer can use
+`pkg` for missing Go, Zsh, and Git dependencies and never attempts `chsh`.
+After `ozsh apply`, start Zsh so the managed block can source
 `~/.config/ozsh/omega.zsh`.
 
-## Migration from omega-zsh-python
-
-Start with `examples/minimal.toml`, copy over the segment order and colors you
-want to preserve, then run:
-
-```bash
-ozsh preview
-ozsh apply
-```
-
-## Development Stack
-
-- Language: Go 1.24+.
-- Dependency manager: Go modules.
-- CLI entrypoint: `cmd/ozsh/main.go`.
-- Terminal UI: Bubble Tea, Bubbles and Lip Gloss.
-- Config format: TOML.
-- Release tooling: GoReleaser, GitHub Releases, Homebrew formula and AUR PKGBUILD.
-- CI/CD: GitHub Actions.
-
-## Developer Setup
+## Development
 
 ```bash
 git clone https://github.com/SnakePilot10/ozsh.git
@@ -203,63 +154,47 @@ cd ozsh
 scripts/setup.sh
 ```
 
-If `pre-commit` is installed, `scripts/setup.sh` installs local hooks. The hooks
-run `scripts/lint.sh` and fast tests before each commit.
-
-## Quality Commands
+Useful checks:
 
 ```bash
-scripts/lint.sh --check      # gofmt check, go vet, golangci-lint when installed
-scripts/test.sh              # coverage, race tests and smoke tests
-scripts/build.sh             # production binary at bin/ozsh
-scripts/healthcheck.sh       # CLI healthcheck with isolated HOME
-scripts/release-smoke.sh     # release smoke path
-scripts/install-smoke.sh     # installer smoke path
-```
-
-Coverage currently gates at 70%. The target is to raise it toward 80% without
-blocking release-candidate work.
-
-## Project Structure
-
-```text
-cmd/ozsh/          CLI entrypoint and command tests
-internal/config/   TOML config loading, saving and validation
-internal/logging/  local structured logging and rotation
-internal/plugins/  manual plugin management and trust rules
-internal/prompt/   prompt generation, templates and preview rendering
-internal/shell/    shell detection, .zshrc management and backups
-internal/tui/      Bubble Tea interface
-packaging/         Homebrew and AUR packaging
-presets/           built-in themes
-scripts/           local automation, validation, deploy and smoke tests
-templates/         optional Zsh prompt templates
-```
-
-## CI/CD and Releases
-
-Validate locally before opening a PR:
-
-```bash
-git checkout -b feature/my-change
 scripts/lint.sh --check
 scripts/test.sh
 scripts/build.sh
 scripts/healthcheck.sh
+scripts/release-smoke.sh
+scripts/install-smoke.sh
 ```
 
-GitHub Actions repeats validation in a clean environment. Merges to `main`
-publish the Docker image and run the production gate. Tags matching `v*` publish
-GitHub Releases with GoReleaser artifacts and checksums.
+The CI workflow checks formatting, runs `go vet`, tests on Ubuntu and macOS,
+enforces the coverage floor, runs smoke tests, scans Go vulnerabilities and
+secrets, and cross-builds for Android/Termux ARM64.
 
-Read:
+## Project structure
 
-- `ANALISIS_PROYECTO.md` for project analysis.
-- `GIT_WORKFLOW.md` for branch and PR rules.
-- `DEPLOYMENT.md` for deployment and rollback.
+```text
+cmd/ozsh/          CLI entrypoint and command tests
+internal/config/   TOML loading, persistence, defaults, and validation
+internal/logging/  local logging and rotation
+internal/plugins/  manual plugin management and trust rules
+internal/prompt/   prompt generation, embedded templates, and preview
+internal/shell/    environment detection, .zshrc management, and backups
+internal/tui/      Bubble Tea interface
+packaging/         Homebrew and AUR packaging
+presets/           built-in themes
+scripts/           development, validation, installation, and release smoke tests
+```
+
+## CI and releases
+
+Pull requests target `main`. GitHub Actions validates every push and pull
+request. Tags matching `v*` invoke GoReleaser to publish versioned artifacts and
+checksums.
+
+See `GIT_WORKFLOW.md` for branch and release conventions and
+`docs/release-checklist.md` before publishing a version.
 
 ## Contributing
 
-Use Conventional Commits and work from `feature/*`, `hotfix/*` or `release/*`
-branches. Do not push directly to `main`. Pull requests should include local
-validation output and any release or deployment notes.
+Use focused branches and Conventional Commits. Avoid direct pushes to `main`,
+include relevant validation results in the pull request, and use an isolated
+`HOME` in any test that touches `.zshrc`, generated shell files, or plugins.
