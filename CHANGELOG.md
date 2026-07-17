@@ -2,5 +2,12 @@
 
 ## Unreleased
 
+- Added config schema versioning with legacy migration backups.
+- Added `ozsh doctor --report` for sanitized local diagnostics.
+- Added release checksum signing with keyless cosign.
+- Expanded apply/reset regression coverage for common `.zshrc` profiles.
+
+## v0.2.0
+
 - Added prompt separators, right prompt support, optional templates, themes, manual plugin commands, logging, and expanded segment support.
 - Removed the unused headers feature from config, CLI, TUI, and generated Zsh.

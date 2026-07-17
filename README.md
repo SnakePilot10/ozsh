@@ -211,3 +211,7 @@ See `GIT_WORKFLOW.md` for branch and release conventions and
 Use focused branches and Conventional Commits. Avoid direct pushes to `main`,
 include relevant validation results in the pull request, and use an isolated
 `HOME` in any test that touches `.zshrc`, generated shell files, or plugins.
+
+## License
+
+`ozsh` is released under the MIT License. See `LICENSE`.
