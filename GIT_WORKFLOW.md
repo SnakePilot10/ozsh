@@ -1,92 +1,91 @@
-# Git Workflow
+# Git workflow
 
 ## Branches
 
-- `main`: produccion. Debe estar protegida y recibir cambios solo por PR aprobado.
-- `develop`: integracion. Los pushes a esta rama disparan deploy automatico a staging.
-- `feature/*`: desarrollo de features y mejoras no urgentes.
-- `hotfix/*`: correcciones urgentes desde `main`.
-- `release/*`: estabilizacion previa a tags `v*`.
+- `main`: stable integration and release branch. Changes arrive through pull requests.
+- `feature/*`: user-facing features and larger improvements.
+- `fix/*`: bug fixes and small corrective changes.
+- `chore/*`: maintenance, documentation, tooling, and repository cleanup.
+- `release/*`: optional release preparation when a version needs stabilization.
+
+Keep branches short-lived and focused on one reviewable concern.
 
 ## Conventional Commits
 
-Formato obligatorio:
+Use this format:
 
 ```text
-tipo(scope opcional): descripcion imperativa corta
+type(optional-scope): short imperative description
 ```
 
-Tipos aceptados:
+Common types:
 
-- `feat`: nueva funcionalidad.
-- `fix`: correccion de bug.
-- `docs`: documentacion.
-- `refactor`: cambio interno sin alterar comportamiento.
-- `test`: tests.
-- `chore`: mantenimiento.
-- `ci`: CI/CD.
-- `build`: build, packaging o dependencias.
-- `perf`: performance.
+- `feat`: new functionality.
+- `fix`: bug correction.
+- `docs`: documentation only.
+- `refactor`: internal change without intended behavior changes.
+- `test`: tests or test infrastructure.
+- `chore`: maintenance.
+- `ci`: GitHub Actions and automation.
+- `build`: build, packaging, or dependencies.
+- `perf`: performance improvement.
 
-Ejemplos:
+Examples:
 
 ```text
 feat: add prompt theme preset
 fix(shell): preserve zshrc newline during reset
-ci: add security scan job
+ci: consolidate repository checks
 ```
 
-## Proceso de feature
+## Change workflow
 
-1. Actualiza `main` local.
-2. Crea una rama `feature/<nombre>`.
-3. Implementa cambios pequenos y revisables.
-4. Ejecuta `scripts/lint.sh --check`, `scripts/test.sh`, `scripts/build.sh` y `scripts/healthcheck.sh`.
-5. Ejecuta `graphify update .` si `graphify-out/graph.json` existe.
-6. Crea un commit con Conventional Commits y pushea la rama.
-7. Abre PR hacia `develop` si existe; si no, hacia `main` hasta crear `develop`.
-8. Espera CI verde y revision antes de mergear.
+1. Update local `main`.
+2. Create a focused branch.
+3. Make small, reviewable changes.
+4. Run the relevant checks:
 
-## Proceso de release
+   ```bash
+   scripts/lint.sh --check
+   scripts/test.sh
+   scripts/build.sh
+   scripts/healthcheck.sh
+   ```
 
-1. Crea `release/vX.Y.Z` desde `develop`.
-2. Ejecuta `scripts/test.sh`, `scripts/build.sh`, `scripts/healthcheck.sh`.
-3. Actualiza `CHANGELOG.md` y packaging si corresponde.
-4. Abre PR de `release/vX.Y.Z` a `main`.
-5. Tras merge, crea tag `vX.Y.Z`.
-6. El workflow `release` ejecuta GoReleaser.
+5. Update the Graphify index when it exists and the tool is available.
+6. Commit with a Conventional Commit message.
+7. Push the branch and open a pull request against `main`.
+8. Merge only after the required CI checks pass.
 
-## Proceso de hotfix
+Tests that touch `.zshrc`, generated shell files, plugins, or `HOME` must use an
+isolated temporary home directory.
 
-1. Crea `hotfix/<descripcion>` desde `main`.
-2. Corrige el problema con el minimo cambio seguro.
-3. Ejecuta validacion completa.
-4. Abre PR hacia `main`.
-5. Tras merge, propaga el fix a `develop`.
+## Releases
 
-## Proteccion de main
+1. Start from a green `main` branch.
+2. Review `docs/release-checklist.md`.
+3. Run the full local validation suite.
+4. Update release notes and packaging metadata when required.
+5. Create and push a signed or annotated `vX.Y.Z` tag.
+6. Let the `release` workflow publish GoReleaser artifacts and checksums.
+7. Verify the published binaries before announcing the release.
 
-Estado verificado con `gh`: el repositorio remoto es privado y `main` no aparece protegida. La API de branch protection devuelve limitacion de plan para repos privados sin GitHub Pro o repo publico.
+## Recommended branch protection
 
-Cuando la plataforma lo permita, configura manualmente en GitHub:
+Configure `main` to:
 
-1. Settings -> Branches -> Add branch protection rule.
-2. Branch name pattern: `main`.
-3. Activar `Require a pull request before merging`.
-4. Activar `Require approvals` con minimo 1 aprobacion.
-5. Activar `Require status checks to pass before merging`.
-6. Checks requeridos:
-   - `validate`
-   - `security-scan`
-   - `docker-build`
-7. Activar `Require branches to be up to date before merging`.
-8. Activar `Do not allow bypassing the above settings` si el plan lo permite.
-9. Restringir push directo a admins o deshabilitarlo por completo.
+- require a pull request before merging;
+- require the CI jobs to pass;
+- require the branch to be current before merging;
+- block force pushes and deletion;
+- prevent direct pushes except for deliberate emergency recovery.
 
-## Reglas operativas
+The expected CI jobs are `quality`, `security-scan`, the Ubuntu and macOS
+`go-test` matrix entries, and `android-termux-cross-build`.
 
-- No pushear directo a `main`.
-- No commitear `.env`, tokens, certificados ni secrets.
-- No usar `git push --force` salvo aprobacion explicita.
-- No omitir CI para cambios de codigo, packaging o scripts.
-- No modificar `.zshrc` en tests sin HOME temporal.
+## Operational rules
+
+- Never commit tokens, credentials, certificates, private keys, or real `.env` files.
+- Never force-push a shared branch without explicit agreement.
+- Do not bypass CI for code, packaging, installer, or shell-management changes.
+- Keep generated build output, coverage files, and local analysis artifacts out of Git.
