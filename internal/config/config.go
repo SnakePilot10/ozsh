@@ -1,6 +1,9 @@
 package config
 
+const CurrentConfigVersion = 1
+
 type Config struct {
+	Version int          `toml:"version"`
 	Prompt  PromptConfig `toml:"prompt"`
 	Plugins PluginConfig `toml:"plugins"`
 	Theme   ThemeConfig  `toml:"theme"`

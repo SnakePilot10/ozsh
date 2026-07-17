@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -42,13 +44,25 @@ func Load() (*Config, error) {
 	if _, err := toml.DecodeFile(p, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to decode config: %w", err)
 	}
+	legacy := cfg.Version == 0
 	if err := Validate(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+	if legacy {
+		if err := backupConfig(p); err != nil {
+			return nil, fmt.Errorf("failed to back up legacy config: %w", err)
+		}
+		if err := Save(&cfg); err != nil {
+			return nil, fmt.Errorf("failed to migrate config: %w", err)
+		}
 	}
 	return &cfg, nil
 }
 
 func Save(cfg *Config) error {
+	if cfg != nil && cfg.Version == 0 {
+		cfg.Version = CurrentConfigVersion
+	}
 	if err := Validate(cfg); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
@@ -103,4 +117,31 @@ func Save(cfg *Config) error {
 		return fmt.Errorf("failed to secure config file: %w", err)
 	}
 	return nil
+}
+
+func backupConfig(path string) error {
+	src, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	info, err := src.Stat()
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	backupPath := filepath.Join(filepath.Dir(path), fmt.Sprintf("config-%s-%d.bak", now.Format("20060102-150405"), now.Nanosecond()))
+	dst, err := os.OpenFile(backupPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, configFileMode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		return err
+	}
+	if err := dst.Close(); err != nil {
+		return err
+	}
+	return os.Chmod(backupPath, info.Mode().Perm())
 }

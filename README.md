@@ -48,6 +48,7 @@ Versioned binaries are published through GitHub Releases when a `v*` tag is cut.
 
 ```bash
 ozsh doctor
+ozsh doctor --report
 ozsh preview
 ozsh preview --real
 ozsh apply
@@ -76,12 +77,16 @@ Use `--verbose` or `-v` for debug output. Logs are written to
 `ozsh update --check` fetches the source checkout and reports when a new version
 is available. `ozsh update` fast-forwards the source checkout, rebuilds ozsh,
 and replaces the currently running binary.
+`ozsh doctor --report` writes a sanitized local diagnostic report to
+`~/.config/ozsh/doctor-report.txt` for support requests.
 
 ## Configuration
 
 Configuration lives at `~/.config/ozsh/config.toml`.
 
 ```toml
+version = 1
+
 [prompt]
 style = "simple"
 newline = true
@@ -109,6 +114,10 @@ Available segments:
 Colors accept Zsh color names or six-digit hex values such as `#00f5ff`.
 `right_order` controls `RPROMPT`. Set `disable_heavy_segments = true` to skip
 runtime-heavy segments such as Git, Node.js, Go, and battery detection.
+
+The `version` field is the stable config schema version. Pre-v1 configs without
+that field are migrated automatically after creating a timestamped backup next to
+`config.toml`. Future schema versions are rejected instead of being rewritten.
 
 ## Themes
 
@@ -191,7 +200,8 @@ scripts/           development, validation, installation, and release smoke test
 
 Pull requests target `main`. GitHub Actions validates every push and pull
 request. Tags matching `v*` invoke GoReleaser to publish versioned artifacts and
-checksums.
+checksums. Release checksums are signed with keyless cosign; verify downloads
+with the published `checksums.txt` and `checksums.txt.sig` artifacts.
 
 See `GIT_WORKFLOW.md` for branch and release conventions and
 `docs/release-checklist.md` before publishing a version.

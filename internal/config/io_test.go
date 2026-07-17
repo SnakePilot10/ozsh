@@ -23,11 +23,75 @@ func TestLoadCreatesDefaultConfigIfMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+	if cfg.Version != CurrentConfigVersion {
+		t.Fatalf("Load() version = %d, want %d", cfg.Version, CurrentConfigVersion)
+	}
 	if cfg.Prompt.Style != "simple" {
 		t.Fatalf("Load() style = %q, want simple", cfg.Prompt.Style)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".config", "ozsh", "config.toml")); err != nil {
 		t.Fatalf("Load() did not create config.toml: %v", err)
+	}
+}
+
+func TestLoadMigratesLegacyConfigAndBacksItUp(t *testing.T) {
+	home := withTempHome(t)
+	dir := filepath.Join(home, ".config", "ozsh")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("MkdirAll(config dir) error = %v", err)
+	}
+	legacy := `[prompt]
+style = "simple"
+newline = true
+right_prompt = false
+separator = "  "
+order = ["user"]
+right_order = []
+
+[prompt.segments.user]
+enabled = true
+fg = "cyan"
+`
+	if err := os.WriteFile(Path(), []byte(legacy), 0o600); err != nil {
+		t.Fatalf("WriteFile(legacy config) error = %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() legacy error = %v", err)
+	}
+	if cfg.Version != CurrentConfigVersion {
+		t.Fatalf("migrated version = %d, want %d", cfg.Version, CurrentConfigVersion)
+	}
+	data, err := os.ReadFile(Path())
+	if err != nil {
+		t.Fatalf("ReadFile(migrated config) error = %v", err)
+	}
+	if !strings.Contains(string(data), "version = 1") {
+		t.Fatalf("migrated config missing version:\n%s", data)
+	}
+	backups, err := filepath.Glob(filepath.Join(dir, "config-*.bak"))
+	if err != nil {
+		t.Fatalf("Glob(config backup) error = %v", err)
+	}
+	if len(backups) != 1 {
+		t.Fatalf("legacy backups = %d, want 1", len(backups))
+	}
+	backupData, err := os.ReadFile(backups[0])
+	if err != nil {
+		t.Fatalf("ReadFile(config backup) error = %v", err)
+	}
+	if string(backupData) != legacy {
+		t.Fatalf("backup content changed:\n%s", backupData)
+	}
+}
+
+func TestLoadRejectsFutureConfigVersion(t *testing.T) {
+	withTempHome(t)
+	cfg := Default()
+	cfg.Version = CurrentConfigVersion + 1
+	if err := Save(cfg); err == nil {
+		t.Fatal("Save(future version) error = nil, want error")
 	}
 }
 

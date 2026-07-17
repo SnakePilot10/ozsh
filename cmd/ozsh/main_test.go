@@ -79,6 +79,57 @@ func TestRunResetRestoresOriginalZshrcWithoutFinalNewline(t *testing.T) {
 	}
 }
 
+func TestRunApplyResetPreservesCommonZshrcProfiles(t *testing.T) {
+	profiles := map[string]string{
+		"oh-my-zsh": `export ZSH="$HOME/.oh-my-zsh"
+ZSH_THEME="robbyrussell"
+plugins=(git zsh-autosuggestions)
+source $ZSH/oh-my-zsh.sh
+`,
+		"powerlevel10k": `if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+source ~/powerlevel10k/powerlevel10k.zsh-theme
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+`,
+	}
+	for name, original := range profiles {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte(original), 0o600); err != nil {
+				t.Fatalf("WriteFile(.zshrc) error = %v", err)
+			}
+
+			runApply()
+			first, err := os.ReadFile(shell.ZshrcPath())
+			if err != nil {
+				t.Fatalf("ReadFile(.zshrc after first apply) error = %v", err)
+			}
+			runApply()
+			second, err := os.ReadFile(shell.ZshrcPath())
+			if err != nil {
+				t.Fatalf("ReadFile(.zshrc after second apply) error = %v", err)
+			}
+			if string(first) != string(second) {
+				t.Fatalf("runApply() is not idempotent:\nfirst:\n%s\nsecond:\n%s", first, second)
+			}
+			if strings.Count(string(second), `source "$HOME/.config/ozsh/omega.zsh"`) != 1 {
+				t.Fatalf("applied .zshrc has duplicate ozsh source block:\n%s", second)
+			}
+
+			runReset()
+			reset, err := os.ReadFile(shell.ZshrcPath())
+			if err != nil {
+				t.Fatalf("ReadFile(.zshrc after reset) error = %v", err)
+			}
+			if string(reset) != original {
+				t.Fatalf("reset .zshrc = %q, want original %q", reset, original)
+			}
+		})
+	}
+}
+
 func TestSuggestCommand(t *testing.T) {
 	if got := suggestCommand("aplly"); got != "apply" {
 		t.Fatalf("suggestCommand(aplly) = %q, want apply", got)
@@ -170,12 +221,51 @@ func TestRunDoctorReportsCriticalChecks(t *testing.T) {
 		t.Fatalf("WriteFile(.zshrc) error = %v", err)
 	}
 
-	out := captureStdout(t, runDoctor)
+	out := captureStdout(t, func() { runDoctor() })
 
 	for _, want := range []string{"zsh is installed", "config.toml exists", ".zshrc exists", "All critical checks passed."} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("runDoctor() output missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestRunDoctorReportWritesSanitizedDiagnostics(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/usr/bin/zsh")
+	binDir := filepath.Join(home, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(bin) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "zsh"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile(fake zsh) error = %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := config.Save(config.Default()); err != nil {
+		t.Fatalf("config.Save() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte("export SECRET_TOKEN=do-not-copy\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(.zshrc) error = %v", err)
+	}
+
+	out := captureStdout(t, func() { runDoctor("--report") })
+	if !strings.Contains(out, "doctor report written") {
+		t.Fatalf("runDoctor(--report) output = %q, want report path", out)
+	}
+	reportPath := filepath.Join(home, ".config", "ozsh", "doctor-report.txt")
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("ReadFile(report) error = %v", err)
+	}
+	report := string(data)
+	for _, want := range []string{"ozsh doctor report", "version:", "config_valid: true", "zshrc_size:"} {
+		if !strings.Contains(report, want) {
+			t.Fatalf("doctor report missing %q:\n%s", want, report)
+		}
+	}
+	if strings.Contains(report, home) || strings.Contains(report, "SECRET_TOKEN") || strings.Contains(report, "do-not-copy") {
+		t.Fatalf("doctor report leaked local path or .zshrc content:\n%s", report)
 	}
 }
 

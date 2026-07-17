@@ -54,7 +54,31 @@ git push origin v1.0.0
 
 4. Confirm the GitHub Actions `release` workflow completes. The GoReleaser job
    must wait for validation, security scan, and Android/Termux cross-build gates.
-5. Download `checksums.txt` from the release artifacts.
+5. Download `checksums.txt` and `checksums.txt.sig` from the release artifacts.
+6. Verify the checksum signature with cosign:
+
+```bash
+cosign verify-blob \
+  --certificate-identity-regexp 'https://github.com/SnakePilot10/ozsh/.github/workflows/release.yml@refs/tags/v.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --signature checksums.txt.sig \
+  checksums.txt
+```
+
+7. Verify the downloaded archive checksum:
+
+```bash
+sha256sum --check checksums.txt --ignore-missing
+```
+
+## v1.0 Exit Criteria
+
+- `config.toml` includes `version = 1` and legacy configs migrate with backup.
+- `ozsh apply` and `ozsh reset` are idempotent against common `.zshrc` profiles.
+- `ozsh doctor --report` produces a sanitized support bundle without copying `.zshrc` content.
+- GitHub Releases publish archives, `checksums.txt`, and a cosign signature.
+- Clean install smoke passes on Ubuntu, macOS, and Termux.
+- The public README describes the supported CLI/config stability contract.
 
 ## Homebrew Formula
 

@@ -2,6 +2,7 @@ package config
 
 func Default() *Config {
 	return &Config{
+		Version: CurrentConfigVersion,
 		Prompt: PromptConfig{
 			Style:                "simple",
 			Newline:              true,

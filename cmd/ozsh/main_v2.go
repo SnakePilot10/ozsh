@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -44,7 +45,7 @@ func main() {
 	case "apply":
 		runApply()
 	case "doctor":
-		runDoctor()
+		runDoctor(args[1:]...)
 	case "reset":
 		runReset()
 	case "theme":
@@ -73,7 +74,7 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  preview    Show simulated prompt preview")
 	fmt.Println("  apply      Generate omega.zsh and inject into .zshrc")
-	fmt.Println("  doctor     Validate environment and config")
+	fmt.Println("  doctor     Validate environment and config (--report writes diagnostics)")
 	fmt.Println("  reset      Remove the ozsh block from .zshrc")
 	fmt.Println("  theme      List, preview, or apply prompt themes")
 	fmt.Println("  plugin     Manage manual plugins")
@@ -282,8 +283,9 @@ func runApply() {
 	logInfo("applied prompt to %s", shell.OmegaZshPath())
 }
 
-func runDoctor() {
+func runDoctor(args ...string) {
 	ok := true
+	report := len(args) > 0 && args[0] == "--report"
 	fmt.Println("ozsh doctor")
 	fmt.Println()
 	if shell.HasZsh() {
@@ -331,6 +333,14 @@ func runDoctor() {
 	} else {
 		fmt.Printf("[✓] backups available: %d\n", len(backups))
 	}
+	if report {
+		path, err := writeDoctorReport(ok)
+		if err != nil {
+			fmt.Printf("[!] doctor report unavailable: %v\n", err)
+		} else {
+			fmt.Printf("[✓] doctor report written: %s\n", path)
+		}
+	}
 	fmt.Println()
 	if ok {
 		fmt.Println("All critical checks passed.")
@@ -338,6 +348,90 @@ func runDoctor() {
 	}
 	fmt.Println("Some checks failed. Run 'ozsh apply' after fixing.")
 	os.Exit(1)
+}
+
+func writeDoctorReport(ok bool) (string, error) {
+	dir := config.Dir()
+	if dir == "" {
+		return "", fmt.Errorf("cannot determine config directory")
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "doctor-report.txt")
+	home := os.Getenv("HOME")
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "ozsh doctor report\n")
+	fmt.Fprintf(&b, "generated: %s\n", time.Now().Format(time.RFC3339))
+	fmt.Fprintf(&b, "version: %s\n", version)
+	fmt.Fprintf(&b, "goos: %s\n", runtime.GOOS)
+	fmt.Fprintf(&b, "goarch: %s\n", runtime.GOARCH)
+	fmt.Fprintf(&b, "status: %s\n", map[bool]string{true: "ok", false: "failed"}[ok])
+	fmt.Fprintf(&b, "termux: %t\n", shell.IsTermux())
+	fmt.Fprintf(&b, "termux_chroot: %t\n", shell.IsTermuxChroot())
+	fmt.Fprintf(&b, "zsh_in_path: %t\n", shell.HasZsh())
+	fmt.Fprintf(&b, "zsh_default_shell: %t\n", shell.ZshIsDefaultShell())
+	fmt.Fprintf(&b, "config_path: %s\n", sanitizePath(config.Path(), home))
+	fmt.Fprintf(&b, "zshrc_path: %s\n", sanitizePath(shell.ZshrcPath(), home))
+	fmt.Fprintf(&b, "omega_path: %s\n", sanitizePath(shell.OmegaZshPath(), home))
+	fmt.Fprintf(&b, "config_valid: %t\n", configValid())
+	fmt.Fprintf(&b, "zshrc_exists: %t\n", shell.ZshrcExists())
+	fmt.Fprintf(&b, "ozsh_block_present: %t\n", shell.HasBlock())
+	writeFileSummary(&b, "zshrc", shell.ZshrcPath(), home)
+	writeFileSummary(&b, "omega", shell.OmegaZshPath(), home)
+	writeFileSummary(&b, "config", config.Path(), home)
+	if backups, err := shell.Backups(); err == nil {
+		fmt.Fprintf(&b, "backups_count: %d\n", len(backups))
+	}
+	writeLogTail(&b, filepath.Join(dir, "ozsh.log"), home)
+
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func configValid() bool {
+	_, err := config.Load()
+	return err == nil
+}
+
+func writeFileSummary(b *strings.Builder, label, path, home string) {
+	info, err := os.Stat(path)
+	if err != nil {
+		fmt.Fprintf(b, "%s_present: false\n", label)
+		return
+	}
+	fmt.Fprintf(b, "%s_present: true\n", label)
+	fmt.Fprintf(b, "%s_path: %s\n", label, sanitizePath(path, home))
+	fmt.Fprintf(b, "%s_mode: %s\n", label, info.Mode().Perm())
+	fmt.Fprintf(b, "%s_size: %d\n", label, info.Size())
+}
+
+func writeLogTail(b *strings.Builder, path, home string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(b, "log_present: false\n")
+		return
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	start := 0
+	if len(lines) > 40 {
+		start = len(lines) - 40
+	}
+	fmt.Fprintf(b, "log_present: true\n")
+	fmt.Fprintf(b, "log_tail_lines: %d\n", len(lines)-start)
+	for _, line := range lines[start:] {
+		fmt.Fprintf(b, "log: %s\n", sanitizePath(line, home))
+	}
+}
+
+func sanitizePath(value, home string) string {
+	if home == "" {
+		return value
+	}
+	return strings.ReplaceAll(value, home, "~")
 }
 
 func runReset() {

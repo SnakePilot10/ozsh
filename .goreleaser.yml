@@ -27,6 +27,15 @@ archives:
 checksum:
   name_template: checksums.txt
 
+signs:
+  - artifacts: checksum
+    cmd: cosign
+    args:
+      - sign-blob
+      - --yes
+      - --output-signature=${signature}
+      - ${artifact}
+
 changelog:
   sort: asc
   use: github

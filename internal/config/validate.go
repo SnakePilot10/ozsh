@@ -32,6 +32,12 @@ func Validate(cfg *Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
+	if cfg.Version == 0 {
+		cfg.Version = CurrentConfigVersion
+	}
+	if cfg.Version > CurrentConfigVersion {
+		return fmt.Errorf("config version %d is newer than supported version %d", cfg.Version, CurrentConfigVersion)
+	}
 	FillDefaults(cfg)
 
 	seen := map[string]struct{}{}
