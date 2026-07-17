@@ -204,7 +204,9 @@ checksums. Release checksums are signed with keyless cosign; verify downloads
 with the published `checksums.txt` and `checksums.txt.sig` artifacts.
 
 See `GIT_WORKFLOW.md` for branch and release conventions and
-`docs/release-checklist.md` before publishing a version.
+`docs/release-checklist.md` before publishing a version. The first stable
+release should be preceded by a `v1.0.0-rc.1` tag and a short external smoke
+window on Linux, macOS, and Termux.
 
 ## Contributing
 

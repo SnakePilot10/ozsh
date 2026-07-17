@@ -6,6 +6,7 @@
 - Added `ozsh doctor --report` for sanitized local diagnostics.
 - Added release checksum signing with keyless cosign.
 - Expanded apply/reset regression coverage for common `.zshrc` profiles.
+- Documented the v1.0 release-candidate promotion path.
 
 ## v0.2.0
 

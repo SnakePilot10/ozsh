@@ -41,9 +41,44 @@ Verify archives exist for:
 - macOS arm64
 - Android/Termux arm64
 
+## Release Candidate
+
+Use a release candidate before the first stable v1.0 tag.
+
+1. Choose an RC tag, starting with `v1.0.0-rc.1`.
+2. Confirm `CHANGELOG.md` lists the release candidate scope under `Unreleased`.
+3. Create and push the RC tag:
+
+```bash
+git tag v1.0.0-rc.1
+git push origin v1.0.0-rc.1
+```
+
+4. Confirm the gated `release` workflow completes.
+5. Download the generated archives, `checksums.txt`, and `checksums.txt.sig`.
+6. Verify the checksum signature with cosign:
+
+```bash
+cosign verify-blob \
+  --certificate-identity-regexp 'https://github.com/SnakePilot10/ozsh/.github/workflows/release.yml@refs/tags/v.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --signature checksums.txt.sig \
+  checksums.txt
+```
+
+7. Verify at least one downloaded archive against `checksums.txt`:
+
+```bash
+sha256sum --check checksums.txt --ignore-missing
+```
+
+8. Install the RC on fresh Linux, macOS, and Termux environments.
+9. Run the clean install smoke steps below on each environment.
+10. Leave the RC open for one to two weeks. Promote to `v1.0.0` only if no data-loss, security, install, or migration issue is reported.
+
 ## Tag Release
 
-1. Choose the release version, for example `v1.0.0`.
+1. Choose the release version, for example `v1.0.0`, after a successful RC window.
 2. Update `CHANGELOG.md`.
 3. Create and push the tag:
 
@@ -78,6 +113,7 @@ sha256sum --check checksums.txt --ignore-missing
 - `ozsh doctor --report` produces a sanitized support bundle without copying `.zshrc` content.
 - GitHub Releases publish archives, `checksums.txt`, and a cosign signature.
 - Clean install smoke passes on Ubuntu, macOS, and Termux.
+- A `v1.0.0-rc.1` or later RC has completed the release workflow and external smoke window.
 - The public README describes the supported CLI/config stability contract.
 
 ## Homebrew Formula
