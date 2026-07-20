@@ -3,6 +3,7 @@ package plugins
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/snakepilot10/ozsh/internal/config"
@@ -12,6 +13,16 @@ func TestAddRejectsNonHTTPSURL(t *testing.T) {
 	cfg := config.Default()
 	if _, err := Add(cfg, "http://example.com/plugin.git", "plugin.zsh"); err == nil {
 		t.Fatal("Add() error = nil, want https error")
+	}
+}
+
+func TestAddRejectsURLQueryBeforeClone(t *testing.T) {
+	cfg := config.Default()
+	if _, err := Add(cfg, "https://example.com/plugin.git?token=secret", "plugin.zsh"); err == nil {
+		t.Fatal("Add() error = nil, want query rejection")
+	}
+	if _, err := Add(cfg, "https://example.com/plugin.git?", "plugin.zsh"); err == nil {
+		t.Fatal("Add() error = nil, want force-query rejection")
 	}
 }
 
@@ -128,5 +139,32 @@ func TestAddRejectsNonShellLoadFileBeforeClone(t *testing.T) {
 	cfg := config.Default()
 	if _, err := Add(cfg, "https://example.com/plugin.git", "README.md"); err == nil {
 		t.Fatal("Add() error = nil, want non-shell load file error")
+	}
+}
+
+func TestAddAndSaveRollsBackCloneOnSaveFailure(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	gitDir := filepath.Join(home, "bin")
+	if err := os.MkdirAll(gitDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll(fake git dir) error = %v", err)
+	}
+	fakeGit := filepath.Join(gitDir, "git")
+	if err := os.WriteFile(fakeGit, []byte("#!/bin/sh\nmkdir -p \"$5\"\nprintf '# plugin\\n' > \"$5/plugin.zsh\"\n"), 0o700); err != nil {
+		t.Fatalf("WriteFile(fake git) error = %v", err)
+	}
+	t.Setenv("PATH", gitDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	cfg := config.Default()
+	cfg.Version = config.CurrentConfigVersion + 1
+	_, err := AddAndSave(cfg, "https://example.com/demo.git", "plugin.zsh")
+	if err == nil || !strings.Contains(err.Error(), "config could not be saved") {
+		t.Fatalf("AddAndSave() error = %v, want save failure", err)
+	}
+	if len(cfg.Plugins.Items) != 0 {
+		t.Fatalf("AddAndSave() left config items = %#v", cfg.Plugins.Items)
+	}
+	if _, statErr := os.Stat(filepath.Join(Dir(), "demo")); !os.IsNotExist(statErr) {
+		t.Fatalf("AddAndSave() left cloned plugin dir: %v", statErr)
 	}
 }

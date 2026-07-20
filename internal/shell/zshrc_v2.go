@@ -14,7 +14,11 @@ const (
 )
 
 func HasBlock() bool {
-	data, err := os.ReadFile(ZshrcPath())
+	_, target, err := ResolveZshrcTarget()
+	if err != nil {
+		return false
+	}
+	data, err := os.ReadFile(target)
 	if err != nil {
 		return false
 	}
@@ -27,12 +31,16 @@ func ManagedBlock() string {
 }
 
 func PreviewInjectBlock() (string, string, error) {
-	data, err := os.ReadFile(ZshrcPath())
+	logical, target, err := ResolveZshrcTarget()
+	if err != nil {
+		return "", "", err
+	}
+	data, err := os.ReadFile(target)
 	if err != nil {
 		if os.IsNotExist(err) {
 			data = []byte{}
 		} else {
-			return "", "", fmt.Errorf("failed to read .zshrc: %w", err)
+			return "", "", fmt.Errorf("failed to read .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
 		}
 	}
 	before := string(data)
@@ -86,14 +94,17 @@ func DiffLines(before, after string) string {
 }
 
 func InjectBlock() error {
-	path := ZshrcPath()
-	mode, err := ensureZshrc(path)
+	logical, target, err := ResolveZshrcTarget()
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(path)
+	mode, err := ensureZshrc(target)
 	if err != nil {
-		return fmt.Errorf("failed to read .zshrc: %w", err)
+		return err
+	}
+	data, err := os.ReadFile(target)
+	if err != nil {
+		return fmt.Errorf("failed to read .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
 	}
 	content := string(data)
 	if hasMalformedBlock(content) {
@@ -102,24 +113,30 @@ func InjectBlock() error {
 	if _, err := Backup(); err != nil {
 		return fmt.Errorf("backup failed: %w", err)
 	}
-	if err := atomicWrite(path, []byte(injectBlockContent(content)), mode); err != nil {
-		return fmt.Errorf("failed to write .zshrc: %w", err)
+	if err := atomicWrite(target, []byte(injectBlockContent(content)), mode); err != nil {
+		return fmt.Errorf("failed to write .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
 	}
 	return nil
 }
 
 func RemoveBlock() error {
-	path := ZshrcPath()
-	info, err := os.Stat(path)
+	logical, target, err := ResolveZshrcTarget()
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(target)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf(".zshrc does not exist")
 		}
-		return fmt.Errorf("failed to inspect .zshrc: %w", err)
+		return fmt.Errorf("failed to inspect .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
 	}
-	data, err := os.ReadFile(path)
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf(".zshrc%s must be a regular file", zshrcTargetDescription(logical, target))
+	}
+	data, err := os.ReadFile(target)
 	if err != nil {
-		return fmt.Errorf("failed to read .zshrc: %w", err)
+		return fmt.Errorf("failed to read .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
 	}
 	content := string(data)
 	if hasMalformedBlock(content) {
@@ -128,10 +145,47 @@ func RemoveBlock() error {
 	if _, err := Backup(); err != nil {
 		return fmt.Errorf("backup failed: %w", err)
 	}
-	if err := atomicWrite(path, []byte(removeBlock(content)), info.Mode().Perm()); err != nil {
-		return fmt.Errorf("failed to write .zshrc: %w", err)
+	if err := atomicWrite(target, []byte(removeBlock(content)), info.Mode().Perm()); err != nil {
+		return fmt.Errorf("failed to write .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
 	}
 	return nil
+}
+
+func ResolveZshrcTarget() (logicalPath, targetPath string, err error) {
+	logicalPath = filepath.Clean(ZshrcPath())
+	if abs, absErr := filepath.Abs(logicalPath); absErr == nil {
+		logicalPath = filepath.Clean(abs)
+	}
+	info, err := os.Lstat(logicalPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return logicalPath, logicalPath, nil
+		}
+		return logicalPath, "", fmt.Errorf("failed to inspect .zshrc: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		if !info.Mode().IsRegular() {
+			return logicalPath, logicalPath, fmt.Errorf(".zshrc must be a regular file")
+		}
+		return logicalPath, logicalPath, nil
+	}
+
+	targetPath, err = filepath.EvalSymlinks(logicalPath)
+	if err != nil {
+		return logicalPath, "", fmt.Errorf("failed to resolve .zshrc symlink %s: %w", logicalPath, err)
+	}
+	if abs, absErr := filepath.Abs(targetPath); absErr == nil {
+		targetPath = abs
+	}
+	targetPath = filepath.Clean(targetPath)
+	info, err = os.Stat(targetPath)
+	if err != nil {
+		return logicalPath, targetPath, fmt.Errorf("failed to inspect .zshrc target %s: %w", targetPath, err)
+	}
+	if !info.Mode().IsRegular() {
+		return logicalPath, targetPath, fmt.Errorf(".zshrc target %s must be a regular file", targetPath)
+	}
+	return logicalPath, targetPath, nil
 }
 
 func EnsureOzshDir() error {
@@ -144,6 +198,9 @@ func EnsureOzshDir() error {
 func ensureZshrc(path string) (os.FileMode, error) {
 	info, err := os.Stat(path)
 	if err == nil {
+		if !info.Mode().IsRegular() {
+			return 0, fmt.Errorf(".zshrc target must be a regular file")
+		}
 		return info.Mode().Perm(), nil
 	}
 	if !os.IsNotExist(err) {
@@ -156,6 +213,13 @@ func ensureZshrc(path string) (os.FileMode, error) {
 		return 0, fmt.Errorf("failed to create .zshrc: %w", err)
 	}
 	return 0o600, nil
+}
+
+func zshrcTargetDescription(logicalPath, targetPath string) string {
+	if targetPath == "" || logicalPath == targetPath {
+		return ""
+	}
+	return fmt.Sprintf(" (%s -> %s)", logicalPath, targetPath)
 }
 
 func atomicWrite(path string, data []byte, mode os.FileMode) error {

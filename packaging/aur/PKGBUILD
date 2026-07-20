@@ -1,17 +1,18 @@
 pkgname=ozsh
 pkgver=0.0.0
+_tagver=0.0.0
 pkgrel=1
 pkgdesc='Declarative prompt builder for Zsh'
 arch=('x86_64' 'aarch64')
 url='https://github.com/snakepilot10/ozsh'
 license=('MIT')
 makedepends=('go')
-source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$_tagver.tar.gz")
 sha256sums=('SKIP')
 
 build() {
   cd "$pkgname-$pkgver"
-  go build -o ozsh ./cmd/ozsh
+  go build -ldflags="-s -w -X main.version=$_tagver" -o ozsh ./cmd/ozsh
 }
 
 package() {
@@ -19,4 +20,3 @@ package() {
   install -Dm755 ozsh "$pkgdir/usr/bin/ozsh"
   install -Dm644 README.md "$pkgdir/usr/share/doc/ozsh/README.md"
 }
-

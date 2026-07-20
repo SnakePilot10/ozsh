@@ -14,12 +14,15 @@ const (
 )
 
 func Backup() (string, error) {
-	src := ZshrcPath()
+	logical, src, err := ResolveZshrcTarget()
+	if err != nil {
+		return "", err
+	}
 	if _, err := os.Stat(src); err != nil {
 		if os.IsNotExist(err) {
 			return "", fmt.Errorf(".zshrc does not exist")
 		}
-		return "", fmt.Errorf("failed to inspect .zshrc: %w", err)
+		return "", fmt.Errorf("failed to inspect .zshrc%s: %w", zshrcTargetDescription(logical, src), err)
 	}
 
 	backupDir := BackupsDir()
@@ -31,7 +34,7 @@ func Backup() (string, error) {
 	}
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return "", fmt.Errorf("failed to read .zshrc: %w", err)
+		return "", fmt.Errorf("failed to read .zshrc%s: %w", zshrcTargetDescription(logical, src), err)
 	}
 
 	stamp := time.Now().Format("2006-01-02-1504")

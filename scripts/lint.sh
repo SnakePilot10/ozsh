@@ -24,6 +24,16 @@ fi
 echo "[lint] go vet"
 go vet ./...
 
+echo "[lint] shell syntax"
+bash -n install.sh scripts/*.sh
+
+if command -v shellcheck >/dev/null 2>&1; then
+  echo "[lint] shellcheck"
+  shellcheck install.sh scripts/*.sh
+else
+  echo "[lint] shellcheck not found; install shellcheck to lint shell scripts"
+fi
+
 if command -v golangci-lint >/dev/null 2>&1; then
   echo "[lint] golangci-lint"
   golangci-lint run

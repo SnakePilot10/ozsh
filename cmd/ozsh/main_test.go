@@ -248,6 +248,9 @@ func TestRunDoctorReportWritesSanitizedDiagnostics(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte("export SECRET_TOKEN=do-not-copy\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile(.zshrc) error = %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(home, ".config", "ozsh", "ozsh.log"), []byte("plugin add https://example.com/repo.git?token=do-not-copy\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(ozsh.log) error = %v", err)
+	}
 
 	out := captureStdout(t, func() { runDoctor("--report") })
 	if !strings.Contains(out, "doctor report written") {

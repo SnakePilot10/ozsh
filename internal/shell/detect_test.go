@@ -39,16 +39,25 @@ func TestDetectPathsAndExistingFiles(t *testing.T) {
 func TestTermuxDetection(t *testing.T) {
 	t.Setenv("TERMUX_VERSION", "1")
 	t.Setenv("PREFIX", "/data/data/com.termux/files/usr")
-	t.Setenv("PATH", "/data/data/com.termux/files/usr/bin:/usr/bin")
+	t.Setenv("PATH", "/data/data/com.termux/files/usr/bin")
 
 	if !IsTermux() {
 		t.Fatal("IsTermux() = false, want true")
 	}
-	if !IsTermuxChroot() {
-		t.Fatal("IsTermuxChroot() = false, want true")
+	if IsTermuxChroot() {
+		t.Fatal("IsTermuxChroot() = true for normal Termux PATH")
 	}
 	if got := TermuxPrefix(); got != "/data/data/com.termux/files/usr" {
 		t.Fatalf("TermuxPrefix() = %q, want Termux prefix", got)
+	}
+}
+
+func TestTermuxChrootDetection(t *testing.T) {
+	t.Setenv("TERMUX_VERSION", "1")
+	t.Setenv("PREFIX", "/data/data/com.termux/files/usr")
+	t.Setenv("PATH", "/data/data/com.termux/files/usr/bin:/usr/bin")
+	if !IsTermuxChroot() {
+		t.Fatal("IsTermuxChroot() = false with standalone /usr/bin")
 	}
 }
 

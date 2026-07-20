@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -337,6 +338,43 @@ print -r -- "$(ozsh_join ' | ' '')"
 	}
 	if got, want := string(out), " | second\nfirst |  | third\n\n"; got != want {
 		t.Fatalf("ozsh_join output = %q, want %q", got, want)
+	}
+}
+
+func TestGenerateClearsRPromptAndDedupesPrecmdFunction(t *testing.T) {
+	if _, err := exec.LookPath("zsh"); err != nil {
+		t.Skip("zsh not available")
+	}
+	tmp := t.TempDir()
+	cfg := config.Default()
+	cfg.Prompt.RightPrompt = false
+	cfg.Prompt.RightOrder = nil
+	output, err := Generate(cfg)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	omega := filepath.Join(tmp, "omega.zsh")
+	if err := os.WriteFile(omega, []byte(output), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(tmp, "precmd.zsh")
+	body := `RPROMPT=stale
+precmd_functions=()
+source ` + strconv.Quote(omega) + `
+source ` + strconv.Quote(omega) + `
+ozsh_prompt
+print -r -- "rprompt=${RPROMPT}"
+print -r -- "count=${precmd_functions[(I)ozsh_prompt]}"
+`
+	if err := os.WriteFile(script, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("zsh", "-f", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("zsh precmd script failed: %v\n%s", err, out)
+	}
+	if got := string(out); got != "rprompt=\ncount=1\n" {
+		t.Fatalf("zsh output = %q, want cleared rprompt and one precmd", got)
 	}
 }
 

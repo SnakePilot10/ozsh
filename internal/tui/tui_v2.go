@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	applyop "github.com/snakepilot10/ozsh/internal/apply"
 	"github.com/snakepilot10/ozsh/internal/config"
 	"github.com/snakepilot10/ozsh/internal/plugins"
 	"github.com/snakepilot10/ozsh/internal/prompt"
@@ -792,7 +793,7 @@ func (m *Model) addPluginFromInputs() {
 		m.msg = "plugin load file is required"
 		return
 	}
-	name, err := plugins.Add(m.cfg, url, load)
+	name, err := plugins.AddAndSave(m.cfg, url, load)
 	if err != nil {
 		m.msg = "plugin add error: " + err.Error()
 		return
@@ -850,52 +851,10 @@ func doApply(cfg *config.Config) tea.Cmd {
 }
 
 func apply(cfg *config.Config) string {
-	if err := shell.EnsureOzshDir(); err != nil {
-		return "setup error: " + err.Error()
-	}
-	generated, err := prompt.Generate(cloneConfig(cfg))
-	if err != nil {
-		return "generator error: " + err.Error()
-	}
-	if err := atomicWriteFile(shell.OmegaZshPath(), []byte(generated), 0o600); err != nil {
-		return "write error: " + err.Error()
-	}
-	if err := shell.InjectBlock(); err != nil {
-		return "inject error: " + err.Error()
+	if err := applyop.ApplyConfig(cfg); err != nil {
+		return "apply error: " + err.Error()
 	}
 	return "applied"
-}
-
-func atomicWriteFile(path string, data []byte, mode os.FileMode) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, ".ozsh-*")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
-	if err := tmp.Chmod(mode); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		return err
-	}
-	return os.Chmod(path, mode)
 }
 
 func cloneConfig(cfg *config.Config) *config.Config {

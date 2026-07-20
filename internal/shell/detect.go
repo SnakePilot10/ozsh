@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 func IsTermux() bool {
@@ -14,7 +13,15 @@ func IsTermux() bool {
 }
 
 func IsTermuxChroot() bool {
-	return IsTermux() && strings.Contains(os.Getenv("PATH"), "/usr/bin")
+	if !IsTermux() {
+		return false
+	}
+	for _, entry := range filepath.SplitList(os.Getenv("PATH")) {
+		if entry == "/usr/bin" || entry == "/bin" {
+			return true
+		}
+	}
+	return false
 }
 
 func ZshIsDefaultShell() bool {

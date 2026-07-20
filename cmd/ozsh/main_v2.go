@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	applyop "github.com/snakepilot10/ozsh/internal/apply"
 	"github.com/snakepilot10/ozsh/internal/config"
 	"github.com/snakepilot10/ozsh/internal/logging"
 	"github.com/snakepilot10/ozsh/internal/plugins"
@@ -33,7 +34,7 @@ const (
 func main() {
 	args, verbose := parseGlobalFlags(os.Args[1:])
 	log = logging.New(config.Dir(), verbose)
-	log.Debug("starting ozsh with args=%v", args)
+	log.Debug("starting ozsh command=%s", commandName(args))
 	if len(args) == 0 {
 		printUsage()
 		return
@@ -261,26 +262,23 @@ func runApply() {
 	if err != nil {
 		exitConfigError(err)
 	}
-	generated, err := prompt.Generate(cfg)
-	if err != nil {
-		logError("generator failed: %v", err)
-		fmt.Fprintf(os.Stderr, "generator error: %v\n", err)
+	if err := applyop.ApplyConfig(cfg); err != nil {
+		logError("apply failed: %v", err)
+		fmt.Fprintf(os.Stderr, "apply error: %v\n", err)
 		os.Exit(1)
 	}
-	if err := shell.WriteOmega([]byte(generated)); err != nil {
-		logError("write failed: %v", err)
-		fmt.Fprintf(os.Stderr, "write error: %v\n", err)
-		os.Exit(1)
-	}
-	if err := shell.InjectBlock(); err != nil {
-		logError("inject failed: %v", err)
-		fmt.Fprintf(os.Stderr, "inject error: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Println("✓ config.toml saved")
 	fmt.Println("✓ omega.zsh generated")
 	fmt.Println("✓ ozsh block injected into .zshrc")
 	fmt.Printf("✓ source %s to activate\n", shell.OmegaZshPath())
 	logInfo("applied prompt to %s", shell.OmegaZshPath())
+}
+
+func commandName(args []string) string {
+	if len(args) == 0 {
+		return "<none>"
+	}
+	return args[0]
 }
 
 func runDoctor(args ...string) {
@@ -384,7 +382,6 @@ func writeDoctorReport(ok bool) (string, error) {
 	if backups, err := shell.Backups(); err == nil {
 		fmt.Fprintf(&b, "backups_count: %d\n", len(backups))
 	}
-	writeLogTail(&b, filepath.Join(dir, "ozsh.log"), home)
 
 	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
 		return "", err
@@ -527,13 +524,10 @@ func runPlugin(args []string) {
 			fmt.Fprintln(os.Stderr, "plugin add requires an https git URL and a .zsh or .sh load file")
 			os.Exit(1)
 		}
-		name, err := plugins.Add(cfg, args[1], args[2])
+		name, err := plugins.AddAndSave(cfg, args[1], args[2])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "plugin add error: %v\n", err)
 			os.Exit(1)
-		}
-		if err := config.Save(cfg); err != nil {
-			exitConfigError(err)
 		}
 		fmt.Printf("✓ plugin added: %s\n", name)
 	case "remove":

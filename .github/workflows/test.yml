@@ -33,6 +33,12 @@ jobs:
           fi
       - name: Vet
         run: go vet ./...
+      - name: Shell syntax
+        run: bash -n install.sh scripts/*.sh
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: ShellCheck
+        run: shellcheck install.sh scripts/*.sh
 
   security-scan:
     runs-on: ubuntu-latest

@@ -34,7 +34,7 @@ fi
 
 echo "[smoke] reset"
 HOME="$HOME_DIR" "$BIN" reset >/dev/null
-if grep -q 'BEGIN ozsh' "$HOME_DIR/.zshrc"; then
+if grep -q '# >>> ozsh >>>' "$HOME_DIR/.zshrc"; then
   echo "[smoke] reset left managed block in .zshrc" >&2
   exit 1
 fi

@@ -171,8 +171,10 @@ ozsh_backtick='` + "`" + `'
 	}
 	if cfg.Prompt.RightPrompt || len(cfg.Prompt.RightOrder) > 0 {
 		b.WriteString("  RPROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${right_parts[@]}\")\"\n")
+	} else {
+		b.WriteString("  RPROMPT=\"\"\n")
 	}
-	b.WriteString("}\n\nprecmd_functions+=(ozsh_prompt)\n")
+	b.WriteString("}\n\nif (( ${precmd_functions[(Ie)ozsh_prompt]:-0} == 0 )); then\n  precmd_functions+=(ozsh_prompt)\nfi\n")
 	return b.String(), nil
 }
 

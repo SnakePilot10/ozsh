@@ -31,6 +31,30 @@ truthy() {
     esac
 }
 
+shell_single_quote() {
+    local value=${1-}
+    printf "'%s'" "${value//\'/\'\\\'\'}"
+}
+
+validate_bin_dir() {
+    if [[ -z "$BIN_DIR" ]]; then
+        echo "[x] OZSH_BIN_DIR must not be empty" >&2
+        exit 1
+    fi
+    if [[ "$BIN_DIR" != /* ]]; then
+        echo "[x] OZSH_BIN_DIR must be an absolute path: $BIN_DIR" >&2
+        exit 1
+    fi
+    if [[ "$BIN_DIR" =~ [[:cntrl:]] ]]; then
+        echo "[x] OZSH_BIN_DIR must not contain control characters" >&2
+        exit 1
+    fi
+    if [[ -e "$BIN_DIR" && ! -d "$BIN_DIR" ]]; then
+        echo "[x] OZSH_BIN_DIR exists but is not a directory: $BIN_DIR" >&2
+        exit 1
+    fi
+}
+
 run() {
     if [[ "$DRY_RUN" == "1" ]]; then
         printf '[dry run] %q' "$1"
@@ -78,6 +102,7 @@ done
 if [[ -n "${TERMUX_VERSION:-}" ]]; then
     BIN_DIR="${OZSH_BIN_DIR:-${PREFIX}/bin}"
 fi
+validate_bin_dir
 
 echo "=== ozsh installer ==="
 echo
@@ -174,7 +199,7 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
 fi
 
 zshrc="${HOME}/.zshrc"
-path_line="export PATH=\"$BIN_DIR:\$PATH\""
+path_line="export PATH=$(shell_single_quote "$BIN_DIR"):\"\$PATH\""
 default_path_line='export PATH="$HOME/.local/bin:$PATH"'
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     if truthy "$UPDATE_PATH"; then

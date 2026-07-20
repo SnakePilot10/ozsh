@@ -43,6 +43,9 @@ func Add(cfg *config.Config, rawURL, load string) (string, error) {
 	if pluginURL.Scheme != "https" || pluginURL.Host == "" || pluginURL.User != nil {
 		return "", fmt.Errorf("plugin URL must be an https repository URL without credentials")
 	}
+	if pluginURL.RawQuery != "" || pluginURL.ForceQuery {
+		return "", fmt.Errorf("plugin URL must not include a query string")
+	}
 	if pluginURL.Fragment != "" {
 		return "", fmt.Errorf("plugin URL must not include a fragment")
 	}
@@ -97,6 +100,29 @@ func Add(cfg *config.Config, rawURL, load string) (string, error) {
 		Source:  dst,
 		Load:    load,
 	})
+	return name, nil
+}
+
+func AddAndSave(cfg *config.Config, rawURL, load string) (string, error) {
+	original := append([]config.PluginItem(nil), cfg.Plugins.Items...)
+	name, err := Add(cfg, rawURL, load)
+	if err != nil {
+		return "", err
+	}
+	var cloned string
+	for _, item := range cfg.Plugins.Items {
+		if item.Name == name {
+			cloned = item.Source
+			break
+		}
+	}
+	if err := config.Save(cfg); err != nil {
+		if cloned != "" {
+			_ = os.RemoveAll(cloned)
+		}
+		cfg.Plugins.Items = original
+		return "", fmt.Errorf("plugin cloned, but config could not be saved: %w", err)
+	}
 	return name, nil
 }
 

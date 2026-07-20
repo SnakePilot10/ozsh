@@ -232,8 +232,17 @@ func TestApplyWritesOmegaAndInjectsBlock(t *testing.T) {
 		t.Fatalf("WriteFile(.zshrc) error = %v", err)
 	}
 
-	if got := apply(config.Default()); got != "applied" {
+	cfg := config.Default()
+	cfg.Prompt.Separator = " | "
+	if got := apply(cfg); got != "applied" {
 		t.Fatalf("apply() = %q, want applied", got)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+	if saved.Prompt.Separator != " | " {
+		t.Fatalf("apply did not persist config separator = %q", saved.Prompt.Separator)
 	}
 	if !strings.Contains(readFile(t, shell.OmegaZshPath()), "ozsh_prompt()") {
 		t.Fatal("apply did not write generated omega.zsh")

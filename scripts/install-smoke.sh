@@ -117,7 +117,7 @@ test -x "$BIN_DIR/ozsh"
 test -f "$INSTALL_DIR/install.sh"
 grep -q 'All critical checks passed.' "$LOG"
 grep -q 'ozsh apply complete' "$LOG"
-grep -Fq "export PATH=\"$BIN_DIR:\$PATH\"" "$HOME_DIR/.zshrc"
+grep -Fq "export PATH='$BIN_DIR':\"\$PATH\"" "$HOME_DIR/.zshrc"
 grep -q 'source "$HOME/.config/ozsh/omega.zsh"' "$HOME_DIR/.zshrc"
 
 echo "[install-smoke] dry run"
@@ -131,5 +131,26 @@ OZSH_BIN_DIR="$TMP/dry-bin" \
 grep -q 'dry run' "$TMP/dry.log"
 test ! -e "$TMP/dry-install"
 test ! -e "$TMP/dry-bin/ozsh"
+
+echo "[install-smoke] safe PATH quoting"
+HOSTILE_BIN="$TMP/bin with ' quotes \" and \\$HOME \$(cmd) \`tick\` \\ slash"
+HOME="$HOME_DIR" \
+PATH="$FAKE_BIN:$PATH" \
+OZSH_REPO="$ROOT" \
+OZSH_INSTALL_DIR="$TMP/quote-install" \
+OZSH_BIN_DIR="$HOSTILE_BIN" \
+"$ROOT/install.sh" --dry-run > "$TMP/quote.log"
+grep -Fq "export PATH='$TMP/bin with '\'' quotes \" and \\$HOME \$(cmd) \`tick\` \\ slash':\"\$PATH\"" "$TMP/quote.log"
+
+echo "[install-smoke] reject unsafe BIN_DIR"
+if HOME="$HOME_DIR" PATH="$FAKE_BIN:$PATH" OZSH_BIN_DIR="relative/bin" "$ROOT/install.sh" --dry-run > "$TMP/bad-relative.log" 2>&1; then
+  echo "relative OZSH_BIN_DIR was accepted" >&2
+  exit 1
+fi
+if HOME="$HOME_DIR" PATH="$FAKE_BIN:$PATH" OZSH_BIN_DIR="$TMP/bad
+bin" "$ROOT/install.sh" --dry-run > "$TMP/bad-control.log" 2>&1; then
+  echo "control character OZSH_BIN_DIR was accepted" >&2
+  exit 1
+fi
 
 echo "[install-smoke] ok"
