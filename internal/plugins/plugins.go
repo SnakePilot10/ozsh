@@ -146,6 +146,55 @@ func Remove(cfg *config.Config, name string) error {
 	return fmt.Errorf("plugin %q not found", name)
 }
 
+// RemoveAndSave moves the checkout aside before persisting the config change,
+// so a failed save can restore both the config and plugin directory.
+func RemoveAndSave(cfg *config.Config, name string) error {
+	if err := validateName(name); err != nil {
+		return err
+	}
+	index := -1
+	var item config.PluginItem
+	for i, candidate := range cfg.Plugins.Items {
+		if candidate.Name == name {
+			index = i
+			item = candidate
+			break
+		}
+	}
+	if index < 0 {
+		return fmt.Errorf("plugin %q not found", name)
+	}
+	if err := validatePluginSource(item); err != nil {
+		return fmt.Errorf("plugin %q has an unsafe source path: %w", name, err)
+	}
+
+	quarantine := fmt.Sprintf("%s.ozsh-remove-%d", item.Source, time.Now().UnixNano())
+	staged := true
+	if err := os.Rename(item.Source, quarantine); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to stage plugin directory removal: %w", err)
+		}
+		staged = false
+	}
+	original := append([]config.PluginItem(nil), cfg.Plugins.Items...)
+	cfg.Plugins.Items = append(cfg.Plugins.Items[:index], cfg.Plugins.Items[index+1:]...)
+	if err := config.Save(cfg); err != nil {
+		cfg.Plugins.Items = original
+		if staged {
+			if restoreErr := os.Rename(quarantine, item.Source); restoreErr != nil {
+				return fmt.Errorf("config save failed: %v; plugin restore failed: %w", err, restoreErr)
+			}
+		}
+		return fmt.Errorf("config could not be saved; plugin removal rolled back: %w", err)
+	}
+	if staged {
+		if err := os.RemoveAll(quarantine); err != nil {
+			return fmt.Errorf("plugin removed from config, but staged directory cleanup failed: %w", err)
+		}
+	}
+	return nil
+}
+
 func SetEnabled(cfg *config.Config, name string, enabled bool) error {
 	if err := validateName(name); err != nil {
 		return err
@@ -239,6 +288,17 @@ func validateTrustTarget(item config.PluginItem) error {
 	}
 
 	target := filepath.Join(item.Source, load)
+	current := item.Source
+	for _, component := range strings.Split(load, string(filepath.Separator)) {
+		current = filepath.Join(current, component)
+		componentInfo, componentErr := os.Lstat(current)
+		if componentErr != nil {
+			return fmt.Errorf("load path component unavailable: %w", componentErr)
+		}
+		if componentInfo.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("load path must not contain symlinks")
+		}
+	}
 	info, err := os.Lstat(target)
 	if err != nil {
 		return fmt.Errorf("load file unavailable: %w", err)

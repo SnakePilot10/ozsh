@@ -17,6 +17,9 @@ func ApplyConfig(cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("generate prompt: %w", err)
 	}
+	if _, _, err := shell.PreviewInjectBlock(); err != nil {
+		return fmt.Errorf("preflight .zshrc: %w", err)
+	}
 	if err := config.Save(clone); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}

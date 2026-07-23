@@ -6,8 +6,8 @@
 
 `ozsh` is functional beta software. The CLI, Bubble Tea TUI, prompt generator,
 themes, manual plugin support, backups, installer, and release packaging are in
-place. The project remains pre-v1.0 while it receives broader testing on Linux,
-macOS, and Termux.
+place. The project remains pre-v1.0 while it receives broader testing on Linux
+and Termux.
 
 ## Principles
 
@@ -18,7 +18,7 @@ macOS, and Termux.
 
 ## Installation
 
-Go 1.24 or newer is required for source installations.
+Go 1.25 or newer is required for source installations.
 
 ```bash
 git clone https://github.com/SnakePilot10/ozsh.git
@@ -26,11 +26,10 @@ cd ozsh
 ./install.sh
 ```
 
-Unattended installation:
+Unattended installation from a reviewed checkout:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SnakePilot10/ozsh/main/install.sh \
-  | bash -s -- --yes --update-path --apply
+OZSH_YES=1 OZSH_UPDATE_PATH=1 OZSH_APPLY=1 ./install.sh
 ```
 
 Installer variables:
@@ -42,7 +41,9 @@ Installer variables:
 - `OZSH_APPLY=1`: apply the generated prompt after installation.
 - `OZSH_UPDATE_PATH=1`: add the binary directory to `.zshrc` when needed.
 
-Versioned binaries are published through GitHub Releases when a `v*` tag is cut.
+Versioned binaries, checksums, signatures, certificates, and Sigstore bundles are
+published through GitHub Releases when a `v*` tag is cut. Avoid piping the
+mutable `main` branch into a shell.
 
 ## Commands
 
@@ -112,6 +113,8 @@ Available segments:
 - `jobs`: background job count.
 
 Colors accept Zsh color names or six-digit hex values such as `#00f5ff`.
+Each segment can also define a literal `icon` and foreground/background colors;
+dynamic prompt text and icons are escaped before Zsh renders them.
 `right_order` controls `RPROMPT`. Set `disable_heavy_segments = true` to skip
 runtime-heavy segments such as Git, Node.js, Go, and battery detection.
 
@@ -145,12 +148,6 @@ before running `ozsh plugin trust <name>`.
 preview, apply, doctor, themes, and plugins views. The apply flow shows the
 planned `.zshrc` diff and requires confirmation before writing.
 
-## Templates
-
-Compile-time prompt templates live under `internal/prompt/templates/` and are
-embedded into the binary. When no embedded template matches `prompt.style`,
-`ozsh` uses its built-in generator.
-
 ## Termux
 
 Termux is detected through `TERMUX_VERSION` or `PREFIX`. The installer can use
@@ -177,9 +174,9 @@ scripts/release-smoke.sh
 scripts/install-smoke.sh
 ```
 
-The CI workflow checks formatting, runs `go vet`, tests on Ubuntu and macOS,
-enforces the coverage floor, runs smoke tests, scans Go vulnerabilities and
-secrets, and cross-builds for Android/Termux ARM64.
+The CI workflow verifies module integrity and tidy state, runs formatting,
+`go vet`, golangci-lint, ShellCheck, race and coverage tests on Linux, scans Go
+vulnerabilities and secrets, and cross-builds for Android/Termux ARM64.
 
 ## Project structure
 
@@ -188,10 +185,10 @@ cmd/ozsh/          CLI entrypoint and command tests
 internal/config/   TOML loading, persistence, defaults, and validation
 internal/logging/  local logging and rotation
 internal/plugins/  manual plugin management and trust rules
-internal/prompt/   prompt generation, embedded templates, and preview
+internal/prompt/   prompt generation and preview
 internal/shell/    environment detection, .zshrc management, and backups
 internal/tui/      Bubble Tea interface
-packaging/         Homebrew and AUR packaging
+packaging/         AUR packaging
 presets/           built-in themes
 scripts/           development, validation, installation, and release smoke tests
 ```
@@ -200,13 +197,14 @@ scripts/           development, validation, installation, and release smoke test
 
 Pull requests target `main`. GitHub Actions validates every push and pull
 request. Tags matching `v*` invoke GoReleaser to publish versioned artifacts and
-checksums. Release checksums are signed with keyless cosign; verify downloads
-with the published `checksums.txt` and `checksums.txt.sig` artifacts.
+checksums. Release checksums are signed with keyless cosign. Releases publish
+`checksums.txt`, its detached signature, signing certificate, and verification
+bundle; verification commands are in `docs/release-checklist.md`.
 
 See `GIT_WORKFLOW.md` for branch and release conventions and
 `docs/release-checklist.md` before publishing a version. The first stable
 release should be preceded by a `v1.0.0-rc.1` tag and a short external smoke
-window on Linux, macOS, and Termux.
+window on Linux and Termux.
 
 ## Contributing
 

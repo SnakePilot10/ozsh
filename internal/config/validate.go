@@ -24,7 +24,6 @@ var validNamedColors = map[string]struct{}{
 var (
 	hexColorPattern    = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 	pluginNamePattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
-	promptStylePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 	controlCharPattern = regexp.MustCompile(`[\x00-\x1f\x7f]`)
 )
 
@@ -35,8 +34,8 @@ func Validate(cfg *Config) error {
 	if cfg.Version == 0 {
 		cfg.Version = CurrentConfigVersion
 	}
-	if cfg.Version > CurrentConfigVersion {
-		return fmt.Errorf("config version %d is newer than supported version %d", cfg.Version, CurrentConfigVersion)
+	if cfg.Version < 0 || cfg.Version > CurrentConfigVersion {
+		return fmt.Errorf("unsupported config version %d; supported version is %d", cfg.Version, CurrentConfigVersion)
 	}
 	FillDefaults(cfg)
 
@@ -61,6 +60,9 @@ func Validate(cfg *Config) error {
 	}
 
 	for name, segment := range cfg.Prompt.Segments {
+		if controlCharPattern.MatchString(segment.Icon) {
+			return fmt.Errorf("segment %q icon cannot contain control characters", name)
+		}
 		if err := validateColor(segment.FG); err != nil {
 			return fmt.Errorf("segment %q fg: %w", name, err)
 		}
@@ -74,8 +76,11 @@ func Validate(cfg *Config) error {
 	if controlCharPattern.MatchString(cfg.Prompt.Separator) {
 		return fmt.Errorf("prompt separator cannot contain control characters")
 	}
-	if !promptStylePattern.MatchString(cfg.Prompt.Style) {
-		return fmt.Errorf("prompt style must contain only letters, numbers, underscores, or hyphens")
+	if cfg.Prompt.Style == "omega" {
+		cfg.Prompt.Style = "simple"
+	}
+	if cfg.Prompt.Style != "simple" {
+		return fmt.Errorf("unsupported prompt style %q; supported style is simple", cfg.Prompt.Style)
 	}
 	if err := validateTheme(cfg.Theme); err != nil {
 		return err

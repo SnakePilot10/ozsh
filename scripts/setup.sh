@@ -6,7 +6,7 @@ cd "$ROOT"
 
 echo "[setup] checking Go"
 if ! command -v go >/dev/null 2>&1; then
-  echo "[setup] Go 1.24+ is required" >&2
+  echo "[setup] Go 1.25+ is required" >&2
   exit 1
 fi
 
@@ -14,8 +14,8 @@ echo "[setup] downloading Go modules"
 go mod download
 
 echo "[setup] installing Go quality tools"
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-go install golang.org/x/vuln/cmd/govulncheck@latest
+GOTOOLCHAIN=go1.25.12 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
+GOTOOLCHAIN=go1.25.12 go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
 
 if command -v pre-commit >/dev/null 2>&1; then
   echo "[setup] installing pre-commit hooks"

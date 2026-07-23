@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
 # usage: ./scripts/update-release.sh <version>
-# This script updates packaging files for a release.
+# This script updates the AUR packaging file for a release.
 # It requires a git tag (e.g., v1.0.0) to exist.
 
 if [ "$#" -ne 1 ]; then
@@ -31,7 +34,7 @@ tmpdir=$(mktemp -d)
 tarball="$tmpdir/ozsh-$version.tar.gz"
 trap 'rm -rf "$tmpdir"' EXIT
 
-# Download the exact tarball URL used by Homebrew and AUR.
+# Download the exact tarball URL used by AUR.
 if command -v curl >/dev/null 2>&1; then
   curl -fsSL "$tarball_url" -o "$tarball"
 elif command -v wget >/dev/null 2>&1; then
@@ -60,15 +63,7 @@ sed -i.bak \
   -e "s/^sha256sums=.*/sha256sums=('${sha}')/" \
   "$pkg_file"
 
-# Update Homebrew formula version and sha
-formula_file="packaging/homebrew/ozsh.rb"
-sed -i.bak \
-  -e "s|archive/refs/tags/v.*\\.tar\\.gz|archive/refs/tags/v${version}.tar.gz|" \
-  -e "s/^  version .*/  version \"${version}\"/" \
-  -e "s/[0-9a-f]\{64\}/${sha}/" \
-  "$formula_file"
+rm -f "$pkg_file.bak"
 
-rm -f "$pkg_file.bak" "$formula_file.bak"
-
-echo "[\u2713] Updated PKGBUILD and Homebrew formula for version $version"
+echo "[ok] Updated AUR PKGBUILD for version $version"
 echo "SHA256: $sha"

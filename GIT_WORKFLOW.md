@@ -67,8 +67,10 @@ isolated temporary home directory.
 3. Run the full local validation suite.
 4. Update release notes and packaging metadata when required.
 5. Create and push a signed or annotated `vX.Y.Z` tag.
-6. Let the `release` workflow publish GoReleaser artifacts and checksums.
-7. Verify the published binaries before announcing the release.
+6. Let the `release` workflow publish static GoReleaser artifacts, checksums,
+   and keyless cosign verification material.
+7. Verify the published checksums, signature bundle, certificate, and binaries
+   before announcing the release.
 
 ## Recommended branch protection
 
@@ -80,8 +82,8 @@ Configure `main` to:
 - block force pushes and deletion;
 - prevent direct pushes except for deliberate emergency recovery.
 
-The expected CI jobs are `quality`, `security-scan`, the Ubuntu and macOS
-`go-test` matrix entries, and `android-termux-cross-build`.
+The expected CI jobs are `quality`, `security-scan`, `go-test`, and
+`android-termux-cross-build`.
 
 ## Operational rules
 

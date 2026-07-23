@@ -40,23 +40,49 @@ func Load() (*Config, error) {
 		}
 	}
 
-	var cfg Config
-	if _, err := toml.DecodeFile(p, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to decode config: %w", err)
-	}
-	legacy := cfg.Version == 0
-	if err := Validate(&cfg); err != nil {
-		return nil, fmt.Errorf("invalid config: %w", err)
+	cfg, legacy, err := decodeFile(p)
+	if err != nil {
+		return nil, err
 	}
 	if legacy {
 		if err := backupConfig(p); err != nil {
 			return nil, fmt.Errorf("failed to back up legacy config: %w", err)
 		}
-		if err := Save(&cfg); err != nil {
+		if err := Save(cfg); err != nil {
 			return nil, fmt.Errorf("failed to migrate config: %w", err)
 		}
 	}
-	return &cfg, nil
+	return cfg, nil
+}
+
+// LoadExisting validates an existing config without creating or migrating it.
+// Diagnostic commands use this to remain read-only.
+func LoadExisting() (*Config, error) {
+	p := Path()
+	if p == "config.toml" {
+		return nil, fmt.Errorf("cannot determine config directory")
+	}
+	if _, err := os.Stat(p); err != nil {
+		return nil, fmt.Errorf("failed to inspect config: %w", err)
+	}
+	cfg, _, err := decodeFile(p)
+	return cfg, err
+}
+
+func decodeFile(path string) (*Config, bool, error) {
+	var cfg Config
+	metadata, err := toml.DecodeFile(path, &cfg)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to decode config: %w", err)
+	}
+	if undecoded := metadata.Undecoded(); len(undecoded) > 0 {
+		return nil, false, fmt.Errorf("unknown config key %q", undecoded[0].String())
+	}
+	legacy := cfg.Version == 0
+	if err := Validate(&cfg); err != nil {
+		return nil, false, fmt.Errorf("invalid config: %w", err)
+	}
+	return &cfg, legacy, nil
 }
 
 func Save(cfg *Config) error {
@@ -126,10 +152,6 @@ func backupConfig(path string) error {
 	}
 	defer src.Close()
 
-	info, err := src.Stat()
-	if err != nil {
-		return err
-	}
 	now := time.Now()
 	backupPath := filepath.Join(filepath.Dir(path), fmt.Sprintf("config-%s-%d.bak", now.Format("20060102-150405"), now.Nanosecond()))
 	dst, err := os.OpenFile(backupPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, configFileMode)
@@ -143,5 +165,5 @@ func backupConfig(path string) error {
 	if err := dst.Close(); err != nil {
 		return err
 	}
-	return os.Chmod(backupPath, info.Mode().Perm())
+	return os.Chmod(backupPath, configFileMode)
 }

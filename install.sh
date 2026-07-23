@@ -122,17 +122,25 @@ install_packages() {
         return 0
     fi
 
+    local -a packages=("$@")
     if [[ -n "${TERMUX_VERSION:-}" ]] && command -v pkg >/dev/null 2>&1; then
-        run pkg install -y "$@"
+        for i in "${!packages[@]}"; do
+            [[ "${packages[$i]}" == "go" ]] && packages[i]="golang"
+        done
+        run pkg install -y "${packages[@]}"
     elif command -v apt-get >/dev/null 2>&1; then
+        for i in "${!packages[@]}"; do
+            [[ "${packages[$i]}" == "go" ]] && packages[i]="golang-go"
+        done
         run sudo apt-get update
-        run sudo apt-get install -y "$@"
+        run sudo apt-get install -y "${packages[@]}"
     elif command -v dnf >/dev/null 2>&1; then
-        run sudo dnf install -y "$@"
+        for i in "${!packages[@]}"; do
+            [[ "${packages[$i]}" == "go" ]] && packages[i]="golang"
+        done
+        run sudo dnf install -y "${packages[@]}"
     elif command -v pacman >/dev/null 2>&1; then
-        run sudo pacman -S --needed --noconfirm "$@"
-    elif command -v brew >/dev/null 2>&1; then
-        run brew install "$@"
+        run sudo pacman -S --needed --noconfirm "${packages[@]}"
     else
         echo "[!] missing dependencies: $*"
         echo "    install them manually, or rerun after adding a supported package manager"
@@ -141,7 +149,14 @@ install_packages() {
 
 missing=()
 command -v git >/dev/null 2>&1 || missing+=(git)
-command -v go >/dev/null 2>&1 || missing+=(go)
+if ! command -v go >/dev/null 2>&1; then
+    if [[ -n "${TERMUX_VERSION:-}" ]]; then
+        missing+=(go)
+    else
+        echo "[x] Go 1.25+ is required. Install a supported Go toolchain before running this installer." >&2
+        exit 1
+    fi
+fi
 command -v zsh >/dev/null 2>&1 || missing+=(zsh)
 if [[ ${#missing[@]} -gt 0 ]]; then
     echo "[*] Missing dependencies: ${missing[*]}"
@@ -161,9 +176,9 @@ fi
 
 go_version="$(go version | awk '{print $3}' | sed 's/^go//')"
 case "$go_version" in
-    1.24*|1.25*|1.26*|1.27*|1.28*|1.29*|1.[3-9][0-9]*|[2-9].*) ;;
+    1.25*|1.26*|1.27*|1.28*|1.29*|1.[3-9][0-9]*|[2-9].*) ;;
     *)
-        echo "[x] Go 1.24+ is required; found ${go_version:-unknown}" >&2
+        echo "[x] Go 1.25+ is required; found ${go_version:-unknown}" >&2
         exit 1
         ;;
 esac
@@ -186,9 +201,9 @@ fi
 if [[ "$SKIP_BUILD" != "1" ]]; then
     echo "[*] Building ozsh..."
     if [[ "$DRY_RUN" == "1" ]]; then
-        echo "[dry run] go build -buildvcs=false -o ozsh ./cmd/ozsh"
+        echo "[dry run] CGO_ENABLED=0 go build -buildvcs=false -o ozsh ./cmd/ozsh"
     else
-        (cd "$INSTALL_DIR" && go build -buildvcs=false -o ozsh ./cmd/ozsh)
+        (cd "$INSTALL_DIR" && CGO_ENABLED=0 go build -buildvcs=false -o ozsh ./cmd/ozsh)
     fi
 fi
 
@@ -200,7 +215,7 @@ fi
 
 zshrc="${HOME}/.zshrc"
 path_line="export PATH=$(shell_single_quote "$BIN_DIR"):\"\$PATH\""
-default_path_line='export PATH="$HOME/.local/bin:$PATH"'
+default_path_line="export PATH=\"\$HOME/.local/bin:\$PATH\""
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     if truthy "$UPDATE_PATH"; then
         echo "[*] Adding $BIN_DIR to $zshrc"

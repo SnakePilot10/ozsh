@@ -6,13 +6,14 @@ builds:
   - id: ozsh
     main: ./cmd/ozsh
     binary: ozsh
+    env:
+      - CGO_ENABLED=0
     flags:
       - -buildvcs=false
     ldflags:
       - -s -w -X main.version={{ .Version }}
     goos:
       - linux
-      - darwin
       - android
     goarch:
       - amd64
@@ -30,11 +31,19 @@ checksum:
 signs:
   - artifacts: checksum
     cmd: cosign
+    signature: ${artifact}.sig
+    certificate: ${artifact}.pem
     args:
       - sign-blob
       - --yes
       - --output-signature=${signature}
+      - --output-certificate=${certificate}
+      - --bundle=${artifact}.bundle
       - ${artifact}
+
+release:
+  extra_files:
+    - glob: ./dist/checksums.txt.bundle
 
 changelog:
   sort: asc

@@ -168,3 +168,62 @@ func TestAddAndSaveRollsBackCloneOnSaveFailure(t *testing.T) {
 		t.Fatalf("AddAndSave() left cloned plugin dir: %v", statErr)
 	}
 }
+
+func TestRemoveAndSaveRollsBackOnSaveFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	pluginDir := filepath.Join(Dir(), "demo")
+	if err := os.MkdirAll(pluginDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll(plugin dir) error = %v", err)
+	}
+	cfg := config.Default()
+	cfg.Version = config.CurrentConfigVersion + 1
+	cfg.Plugins.Items = []config.PluginItem{{Name: "demo", Source: pluginDir, Load: "plugin.zsh"}}
+
+	err := RemoveAndSave(cfg, "demo")
+	if err == nil || !strings.Contains(err.Error(), "rolled back") {
+		t.Fatalf("RemoveAndSave() error = %v, want rollback error", err)
+	}
+	if len(cfg.Plugins.Items) != 1 {
+		t.Fatalf("RemoveAndSave() config items = %#v", cfg.Plugins.Items)
+	}
+	if info, statErr := os.Stat(pluginDir); statErr != nil || !info.IsDir() {
+		t.Fatalf("RemoveAndSave() did not restore plugin directory: %v", statErr)
+	}
+}
+
+func TestSetTrustedRejectsIntermediateSymlink(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	pluginDir := filepath.Join(Dir(), "demo")
+	external := filepath.Join(home, "external")
+	if err := os.MkdirAll(external, 0o700); err != nil {
+		t.Fatalf("MkdirAll(external) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(external, "plugin.zsh"), []byte("# plugin\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(plugin) error = %v", err)
+	}
+	if err := os.MkdirAll(pluginDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll(plugin dir) error = %v", err)
+	}
+	if err := os.Symlink(external, filepath.Join(pluginDir, "nested")); err != nil {
+		t.Fatalf("Symlink(nested) error = %v", err)
+	}
+	cfg := config.Default()
+	cfg.Plugins.Items = []config.PluginItem{{Name: "demo", Source: pluginDir, Load: "nested/plugin.zsh"}}
+	if err := SetTrusted(cfg, "demo", true); err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("SetTrusted() error = %v, want intermediate symlink error", err)
+	}
+}
+
+func TestRemoveAndSaveRemovesOrphanedConfigEntry(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	pluginDir := filepath.Join(Dir(), "missing")
+	cfg := config.Default()
+	cfg.Plugins.Items = []config.PluginItem{{Name: "missing", Source: pluginDir, Load: "plugin.zsh"}}
+	if err := RemoveAndSave(cfg, "missing"); err != nil {
+		t.Fatalf("RemoveAndSave(orphan) error = %v", err)
+	}
+	if len(cfg.Plugins.Items) != 0 {
+		t.Fatalf("RemoveAndSave(orphan) left items = %#v", cfg.Plugins.Items)
+	}
+}

@@ -5,72 +5,67 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.24.4"
+  GO_VERSION: "1.25.12"
+  GOLANGCI_LINT_VERSION: "v2.4.0"
+  GOVULNCHECK_VERSION: "v1.6.0"
 
 jobs:
   quality:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Check formatting
-        run: |
-          unformatted="$(gofmt -l .)"
-          if [ -n "$unformatted" ]; then
-            printf '%s\n' "$unformatted"
-            exit 1
-          fi
-      - name: Vet
-        run: go vet ./...
-      - name: Shell syntax
-        run: bash -n install.sh scripts/*.sh
-      - name: Install ShellCheck
+      - name: Verify modules
+        run: go mod verify
+      - name: Verify tidy state
+        run: go mod tidy -diff
+      - name: Install system lint tooling
         run: sudo apt-get update && sudo apt-get install -y shellcheck
-      - name: ShellCheck
-        run: shellcheck install.sh scripts/*.sh
+      - name: Install golangci-lint
+        run: go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
+      - name: Lint and type checks
+        run: scripts/lint.sh --check
 
   security-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
       - name: Go vulnerability scan
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
       - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   go-test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Install zsh on Linux
-        if: runner.os == 'Linux'
+      - name: Install zsh
         run: sudo apt-get update && sudo apt-get install -y zsh
       - name: Require zsh
         run: command -v zsh
@@ -80,6 +75,8 @@ jobs:
           go test -coverprofile=coverage.out ./... 2>&1 | tee test-output.log
       - name: Enforce coverage floor
         run: go tool cover -func=coverage.out | awk '/^total:/ { if ($3 + 0 < 70) { print "coverage " $3 " is below 70%"; exit 1 } }'
+      - name: Run race tests
+        run: go test -race ./...
       - name: Build
         run: go build -buildvcs=false ./...
       - name: Release smoke test
@@ -88,9 +85,9 @@ jobs:
         run: scripts/install-smoke.sh
       - name: Upload test diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          name: test-diagnostics-${{ matrix.os }}
+          name: test-diagnostics-linux
           path: |
             coverage.out
             test-output.log
@@ -98,10 +95,12 @@ jobs:
 
   android-termux-cross-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - run: GOOS=android GOARCH=arm64 go build -buildvcs=false ./cmd/ozsh
+      - run: CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -buildvcs=false ./cmd/ozsh

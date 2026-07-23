@@ -44,18 +44,22 @@ func main() {
 	case "preview":
 		runPreview(args[1:])
 	case "apply":
+		requireNoArgs("apply", args[1:])
 		runApply()
 	case "doctor":
 		runDoctor(args[1:]...)
 	case "reset":
+		requireNoArgs("reset", args[1:])
 		runReset()
 	case "theme":
 		runTheme(args[1:])
 	case "plugin":
 		runPlugin(args[1:])
 	case "tui":
+		requireNoArgs("tui", args[1:])
 		runTUI()
 	case "version":
+		requireNoArgs("version", args[1:])
 		fmt.Println(version)
 	case "update":
 		runUpdate(args[1:])
@@ -66,6 +70,14 @@ func main() {
 		}
 		os.Exit(1)
 	}
+}
+
+func requireNoArgs(command string, args []string) {
+	if len(args) == 0 {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Usage: ozsh %s\n", command)
+	os.Exit(1)
 }
 
 func printUsage() {
@@ -87,9 +99,17 @@ func printUsage() {
 }
 
 func runUpdate(args []string) {
+	if len(args) > 1 || (len(args) == 1 && args[0] != "--check") {
+		fmt.Fprintln(os.Stderr, "Usage: ozsh update [--check]")
+		os.Exit(1)
+	}
 	checkOnly := len(args) > 0 && args[0] == "--check"
 	installDir := os.Getenv("OZSH_INSTALL_DIR")
 	if installDir == "" {
+		if os.Getenv("HOME") == "" {
+			fmt.Fprintln(os.Stderr, "update error: cannot determine HOME")
+			os.Exit(1)
+		}
 		installDir = filepath.Join(os.Getenv("HOME"), ".local", "share", "ozsh")
 	}
 	if _, err := os.Stat(filepath.Join(installDir, ".git")); err != nil {
@@ -160,8 +180,13 @@ func installUpdatedBinary(installDir, executable string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-o", tmpPath, "./cmd/ozsh")
+	buildVersion := version
+	if describedVersion, versionErr := gitOutput(installDir, "describe", "--tags", "--always", "--dirty"); versionErr == nil {
+		buildVersion = describedVersion
+	}
+	cmd := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-ldflags", "-s -w -X main.version="+buildVersion, "-o", tmpPath, "./cmd/ozsh")
 	cmd.Dir = installDir
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
@@ -239,6 +264,10 @@ func parseGlobalFlags(args []string) ([]string, bool) {
 }
 
 func runPreview(args []string) {
+	if len(args) > 1 || (len(args) == 1 && args[0] != "--real") {
+		fmt.Fprintln(os.Stderr, "Usage: ozsh preview [--real]")
+		os.Exit(1)
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		exitConfigError(err)
@@ -282,6 +311,10 @@ func commandName(args []string) string {
 }
 
 func runDoctor(args ...string) {
+	if len(args) > 1 || (len(args) == 1 && args[0] != "--report") {
+		fmt.Fprintln(os.Stderr, "Usage: ozsh doctor [--report]")
+		os.Exit(1)
+	}
 	ok := true
 	report := len(args) > 0 && args[0] == "--report"
 	fmt.Println("ozsh doctor")
@@ -292,7 +325,7 @@ func runDoctor(args ...string) {
 		fmt.Println("[✗] zsh not found in PATH")
 		ok = false
 	}
-	if cfg, err := config.Load(); err == nil && cfg != nil {
+	if cfg, err := config.LoadExisting(); err == nil && cfg != nil {
 		fmt.Println("[✓] config.toml exists and is valid")
 	} else {
 		fmt.Printf("[✗] config.toml invalid or unavailable: %v\n", err)
@@ -382,16 +415,47 @@ func writeDoctorReport(ok bool) (string, error) {
 	if backups, err := shell.Backups(); err == nil {
 		fmt.Fprintf(&b, "backups_count: %d\n", len(backups))
 	}
-
-	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+	if err := writePrivateFile(path, []byte(b.String())); err != nil {
 		return "", err
 	}
 	return path, nil
 }
 
 func configValid() bool {
-	_, err := config.Load()
+	_, err := config.LoadExisting()
 	return err == nil
+}
+
+func writePrivateFile(path string, data []byte) error {
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("refusing to replace non-regular report file")
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".doctor-report-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func writeFileSummary(b *strings.Builder, label, path, home string) {
@@ -406,24 +470,6 @@ func writeFileSummary(b *strings.Builder, label, path, home string) {
 	fmt.Fprintf(b, "%s_size: %d\n", label, info.Size())
 }
 
-func writeLogTail(b *strings.Builder, path, home string) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Fprintf(b, "log_present: false\n")
-		return
-	}
-	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
-	start := 0
-	if len(lines) > 40 {
-		start = len(lines) - 40
-	}
-	fmt.Fprintf(b, "log_present: true\n")
-	fmt.Fprintf(b, "log_tail_lines: %d\n", len(lines)-start)
-	for _, line := range lines[start:] {
-		fmt.Fprintf(b, "log: %s\n", sanitizePath(line, home))
-	}
-}
-
 func sanitizePath(value, home string) string {
 	if home == "" {
 		return value
@@ -432,6 +478,10 @@ func sanitizePath(value, home string) string {
 }
 
 func runReset() {
+	if shell.Home() == "" {
+		fmt.Fprintln(os.Stderr, "reset error: cannot determine HOME")
+		os.Exit(1)
+	}
 	if err := shell.RemoveBlock(); err != nil {
 		fmt.Fprintf(os.Stderr, "reset error: %v\n", err)
 		os.Exit(1)
@@ -535,12 +585,9 @@ func runPlugin(args []string) {
 			fmt.Fprintln(os.Stderr, "plugin remove requires a name")
 			os.Exit(1)
 		}
-		if err := plugins.Remove(cfg, args[1]); err != nil {
+		if err := plugins.RemoveAndSave(cfg, args[1]); err != nil {
 			fmt.Fprintf(os.Stderr, "plugin remove error: %v\n", err)
 			os.Exit(1)
-		}
-		if err := config.Save(cfg); err != nil {
-			exitConfigError(err)
 		}
 		fmt.Printf("✓ plugin removed: %s\n", args[1])
 	case "enable", "disable":

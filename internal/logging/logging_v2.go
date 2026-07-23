@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -17,9 +18,13 @@ const (
 type Logger struct {
 	Verbose bool
 	path    string
+	mu      sync.Mutex
 }
 
 func New(dir string, verbose bool) *Logger {
+	if dir == "" {
+		return &Logger{Verbose: verbose}
+	}
 	return &Logger{Verbose: verbose, path: filepath.Join(dir, "ozsh.log")}
 }
 
@@ -52,6 +57,8 @@ func (l *Logger) write(level, msg string) error {
 	if l.path == "" {
 		return nil
 	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	dir := filepath.Dir(l.path)
 	if err := os.MkdirAll(dir, logDirMode); err != nil {
 		return err

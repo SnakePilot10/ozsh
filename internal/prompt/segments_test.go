@@ -17,7 +17,7 @@ func TestRenderPreviewSegments(t *testing.T) {
 		Host:       "omega",
 		Venv:       "venv",
 		Node:       "v22.0.0",
-		Go:         "go1.24.0",
+		Go:         "go1.25.0",
 		Battery:    "87%",
 		Jobs:       2,
 	}
@@ -35,7 +35,7 @@ func TestRenderPreviewSegments(t *testing.T) {
 		{name: "host", fn: renderHost, want: "omega"},
 		{name: "venv", fn: renderVenv, want: "venv"},
 		{name: "node", fn: renderNode, want: "v22.0.0"},
-		{name: "go", fn: renderGo, want: "go1.24.0"},
+		{name: "go", fn: renderGo, want: "go1.25.0"},
 		{name: "battery", fn: renderBattery, want: "87%"},
 		{name: "jobs", fn: renderJobs, want: "2 jobs"},
 	}

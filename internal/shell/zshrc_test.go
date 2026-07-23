@@ -38,6 +38,19 @@ func TestInjectBlockEmptyZshrc(t *testing.T) {
 	}
 }
 
+func TestZshrcOperationsRejectMissingHome(t *testing.T) {
+	t.Setenv("HOME", "")
+	if ZshrcPath() != "" || OmegaDir() != "" {
+		t.Fatalf("paths with missing HOME: zshrc=%q omega=%q", ZshrcPath(), OmegaDir())
+	}
+	if err := InjectBlock(); err == nil || !strings.Contains(err.Error(), "HOME") {
+		t.Fatalf("InjectBlock() error = %v, want HOME error", err)
+	}
+	if err := RemoveBlock(); err == nil || !strings.Contains(err.Error(), "HOME") {
+		t.Fatalf("RemoveBlock() error = %v, want HOME error", err)
+	}
+}
+
 func TestInjectBlockReplacesExistingBlockWithoutDuplicate(t *testing.T) {
 	withTempHome(t)
 	original := "export EDITOR=vim\n" + blockStart + "\nstale\n" + blockEnd + "\nalias ll='ls -la'\n"

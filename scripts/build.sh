@@ -8,7 +8,7 @@ out="${1:-bin/ozsh}"
 mkdir -p "$(dirname "$out")"
 
 echo "[build] building $out"
-go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$out" ./cmd/ozsh
+CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$out" ./cmd/ozsh
 
 echo "[build] verifying binary"
 "$out" version >/dev/null

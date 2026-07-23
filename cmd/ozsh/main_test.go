@@ -452,6 +452,7 @@ func TestInstallUpdatedBinaryReplacesExecutable(t *testing.T) {
 	fakeGo := filepath.Join(fakeBin, "go")
 	if err := os.WriteFile(fakeGo, []byte(`#!/bin/sh
 set -eu
+[ "${CGO_ENABLED:-}" = "0" ] || { echo "CGO_ENABLED must be 0" >&2; exit 3; }
 out=""
 while [ "$#" -gt 0 ]; do
   case "$1" in

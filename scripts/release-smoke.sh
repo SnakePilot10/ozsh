@@ -7,16 +7,29 @@ trap 'rm -rf "$TMP"' EXIT
 
 BIN="$TMP/ozsh"
 HOME_DIR="$TMP/home"
+VERSION="${OZSH_VERSION:-dev}"
 mkdir -p "$HOME_DIR"
 printf 'export EDITOR=vim\n' > "$HOME_DIR/.zshrc"
 
 echo "[smoke] build"
 GOCACHE="${GOCACHE:-/tmp/ozsh-go-build}" \
 GOMODCACHE="${GOMODCACHE:-/tmp/ozsh-gomod}" \
-go build -buildvcs=false -o "$BIN" "$ROOT/cmd/ozsh"
+CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w -X main.version=$VERSION" -o "$BIN" "$ROOT/cmd/ozsh"
 
 echo "[smoke] version"
-"$BIN" version >/dev/null
+actual_version="$("$BIN" version)"
+if [[ "$actual_version" != "$VERSION" ]]; then
+  echo "[smoke] expected version $VERSION, got $actual_version" >&2
+  exit 1
+fi
+
+if [[ "$(go env GOOS)" == "linux" ]] && command -v ldd >/dev/null 2>&1; then
+  echo "[smoke] static binary"
+  if ldd "$BIN" >/dev/null 2>&1; then
+    echo "[smoke] binary is dynamically linked" >&2
+    exit 1
+  fi
+fi
 
 echo "[smoke] preview"
 HOME="$HOME_DIR" "$BIN" preview | grep -q '❯'
@@ -25,7 +38,7 @@ echo "[smoke] apply"
 HOME="$HOME_DIR" "$BIN" apply >/dev/null
 test -f "$HOME_DIR/.config/ozsh/omega.zsh"
 grep -q 'ozsh_prompt()' "$HOME_DIR/.config/ozsh/omega.zsh"
-grep -q 'source "$HOME/.config/ozsh/omega.zsh"' "$HOME_DIR/.zshrc"
+grep -Fq "source \"\$HOME/.config/ozsh/omega.zsh\"" "$HOME_DIR/.zshrc"
 
 if command -v zsh >/dev/null 2>&1; then
   echo "[smoke] generated zsh syntax"

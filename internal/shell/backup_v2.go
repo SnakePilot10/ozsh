@@ -38,25 +38,41 @@ func Backup() (string, error) {
 	}
 
 	stamp := time.Now().Format("2006-01-02-1504")
-	path := filepath.Join(backupDir, fmt.Sprintf("zshrc-%s.bak", stamp))
-	for suffix := 1; ; suffix++ {
-		if _, err := os.Lstat(path); os.IsNotExist(err) {
-			break
-		} else if err != nil {
-			return "", fmt.Errorf("failed to inspect backup destination: %w", err)
+	for suffix := 0; ; suffix++ {
+		name := fmt.Sprintf("zshrc-%s.bak", stamp)
+		if suffix > 0 {
+			name = fmt.Sprintf("zshrc-%s-%d.bak", stamp, suffix)
 		}
-		path = filepath.Join(backupDir, fmt.Sprintf("zshrc-%s-%d.bak", stamp, suffix))
+		path := filepath.Join(backupDir, name)
+		file, openErr := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, backupFileMode)
+		if os.IsExist(openErr) {
+			continue
+		}
+		if openErr != nil {
+			return "", fmt.Errorf("failed to create backup: %w", openErr)
+		}
+		if _, err := file.Write(data); err != nil {
+			file.Close()
+			_ = os.Remove(path)
+			return "", fmt.Errorf("failed to write backup: %w", err)
+		}
+		if err := file.Sync(); err != nil {
+			file.Close()
+			_ = os.Remove(path)
+			return "", fmt.Errorf("failed to flush backup: %w", err)
+		}
+		if err := file.Close(); err != nil {
+			_ = os.Remove(path)
+			return "", fmt.Errorf("failed to close backup: %w", err)
+		}
+		return path, nil
 	}
-	if err := os.WriteFile(path, data, backupFileMode); err != nil {
-		return "", fmt.Errorf("failed to write backup: %w", err)
-	}
-	if err := os.Chmod(path, backupFileMode); err != nil {
-		return "", fmt.Errorf("failed to secure backup: %w", err)
-	}
-	return path, nil
 }
 
 func Backups() ([]string, error) {
+	if BackupsDir() == "" {
+		return nil, fmt.Errorf("cannot determine HOME")
+	}
 	entries, err := os.ReadDir(BackupsDir())
 	if err != nil {
 		if os.IsNotExist(err) {

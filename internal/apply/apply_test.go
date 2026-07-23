@@ -62,7 +62,7 @@ func TestApplyConfigWriteOmegaFailureLeavesSavedConfig(t *testing.T) {
 	}
 }
 
-func TestApplyConfigInjectFailureLeavesSavedConfigAndOmega(t *testing.T) {
+func TestApplyConfigPreflightFailureChangesNothing(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	malformed := "export EDITOR=vim\n# >>> ozsh >>>\nstale\n"
@@ -73,14 +73,14 @@ func TestApplyConfigInjectFailureLeavesSavedConfigAndOmega(t *testing.T) {
 	cfg.Prompt.Separator = " | "
 
 	err := ApplyConfig(cfg)
-	if err == nil || !strings.Contains(err.Error(), "config and omega.zsh saved, but .zshrc could not be updated") {
-		t.Fatalf("ApplyConfig() error = %v, want inject failure", err)
+	if err == nil || !strings.Contains(err.Error(), "preflight .zshrc") {
+		t.Fatalf("ApplyConfig() error = %v, want preflight failure", err)
 	}
-	if saved, loadErr := config.Load(); loadErr != nil || saved.Prompt.Separator != " | " {
-		t.Fatalf("config after inject failure = %#v, %v", saved, loadErr)
+	if _, statErr := os.Stat(config.Path()); !os.IsNotExist(statErr) {
+		t.Fatalf("config changed after preflight failure: %v", statErr)
 	}
-	if omega := readFile(t, shell.OmegaZshPath()); !strings.Contains(omega, "ozsh_prompt()") {
-		t.Fatalf("omega not saved after inject failure: %q", omega)
+	if _, statErr := os.Stat(shell.OmegaZshPath()); !os.IsNotExist(statErr) {
+		t.Fatalf("omega changed after preflight failure: %v", statErr)
 	}
 	if data := readFile(t, shell.ZshrcPath()); data != malformed {
 		t.Fatalf("zshrc changed after inject failure: %q", data)

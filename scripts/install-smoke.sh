@@ -43,7 +43,7 @@ cat > "$FAKE_BIN/go" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "$1" == "version" ]]; then
-  echo "go version go1.24.4 linux/amd64"
+  echo "go version go1.25.12 linux/amd64"
   exit 0
 fi
 if [[ "$1" == "build" ]]; then
@@ -118,7 +118,7 @@ test -f "$INSTALL_DIR/install.sh"
 grep -q 'All critical checks passed.' "$LOG"
 grep -q 'ozsh apply complete' "$LOG"
 grep -Fq "export PATH='$BIN_DIR':\"\$PATH\"" "$HOME_DIR/.zshrc"
-grep -q 'source "$HOME/.config/ozsh/omega.zsh"' "$HOME_DIR/.zshrc"
+grep -Fq "source \"\$HOME/.config/ozsh/omega.zsh\"" "$HOME_DIR/.zshrc"
 
 echo "[install-smoke] dry run"
 HOME="$HOME_DIR" \
@@ -134,13 +134,14 @@ test ! -e "$TMP/dry-bin/ozsh"
 
 echo "[install-smoke] safe PATH quoting"
 HOSTILE_BIN="$TMP/bin with ' quotes \" and \\$HOME \$(cmd) \`tick\` \\ slash"
+EXPECTED_PATH_LINE="export PATH=$(printf "'%s'" "${HOSTILE_BIN//\'/\'\\\'\'}"):\"\$PATH\""
 HOME="$HOME_DIR" \
 PATH="$FAKE_BIN:$PATH" \
 OZSH_REPO="$ROOT" \
 OZSH_INSTALL_DIR="$TMP/quote-install" \
 OZSH_BIN_DIR="$HOSTILE_BIN" \
 "$ROOT/install.sh" --dry-run > "$TMP/quote.log"
-grep -Fq "export PATH='$TMP/bin with '\'' quotes \" and \\$HOME \$(cmd) \`tick\` \\ slash':\"\$PATH\"" "$TMP/quote.log"
+grep -Fq "$EXPECTED_PATH_LINE" "$TMP/quote.log"
 
 echo "[install-smoke] reject unsafe BIN_DIR"
 if HOME="$HOME_DIR" PATH="$FAKE_BIN:$PATH" OZSH_BIN_DIR="relative/bin" "$ROOT/install.sh" --dry-run > "$TMP/bad-relative.log" 2>&1; then

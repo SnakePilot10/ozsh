@@ -171,7 +171,8 @@ func TestPreviewInputFocusCyclesAndSanitizesValues(t *testing.T) {
 	}
 }
 
-func TestThemeControlsStoreCustomAndCycleTUITheme(t *testing.T) {
+func TestThemeControlsStoreCustom(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	model := NewModel(config.Default())
 	model.tab = 5
 
@@ -179,12 +180,27 @@ func TestThemeControlsStoreCustomAndCycleTUITheme(t *testing.T) {
 	if model.cfg.Theme.Name != "custom" || !strings.Contains(model.msg, "custom") {
 		t.Fatalf("saveCustomTheme() theme=%q msg=%q, want custom", model.cfg.Theme.Name, model.msg)
 	}
+}
 
-	for _, want := range []string{"light", "terminal", "dark"} {
-		model.nextTUITheme()
-		if model.tuiTheme != want {
-			t.Fatalf("nextTUITheme() = %q, want %q", model.tuiTheme, want)
-		}
+func TestDoApplyUsesConfigurationSnapshot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte("export EDITOR=vim\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(.zshrc) error = %v", err)
+	}
+	cfg := config.Default()
+	cfg.Prompt.Separator = " snapshot "
+	cmd := doApply(cfg)
+	cfg.Prompt.Separator = " mutated "
+	if result := cmd(); result != applyResult("applied") {
+		t.Fatalf("doApply result = %#v", result)
+	}
+	saved, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+	if saved.Prompt.Separator != " snapshot " {
+		t.Fatalf("saved separator = %q, want snapshot", saved.Prompt.Separator)
 	}
 }
 
@@ -203,9 +219,12 @@ func TestPreviewThemeConfigDoesNotMutateBaseConfig(t *testing.T) {
 }
 
 func TestPluginControlsUntrustAndRejectEmptyAddForm(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	pluginDir := filepath.Join(home, ".config", "ozsh", "plugins", "demo")
 	cfg := config.Default()
 	cfg.Plugins.Items = []config.PluginItem{
-		{Name: "demo", Enabled: true, Trusted: true, Source: filepath.Join(t.TempDir(), "demo"), Load: "plugin.zsh"},
+		{Name: "demo", Enabled: true, Trusted: true, Source: pluginDir, Load: "plugin.zsh"},
 	}
 	model := NewModel(cfg)
 	model.tab = tabPlugins

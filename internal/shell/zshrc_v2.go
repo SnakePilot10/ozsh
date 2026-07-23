@@ -152,6 +152,9 @@ func RemoveBlock() error {
 }
 
 func ResolveZshrcTarget() (logicalPath, targetPath string, err error) {
+	if ZshrcPath() == "" {
+		return "", "", fmt.Errorf("cannot determine HOME")
+	}
 	logicalPath = filepath.Clean(ZshrcPath())
 	if abs, absErr := filepath.Abs(logicalPath); absErr == nil {
 		logicalPath = filepath.Clean(abs)
@@ -189,6 +192,9 @@ func ResolveZshrcTarget() (logicalPath, targetPath string, err error) {
 }
 
 func EnsureOzshDir() error {
+	if OmegaDir() == "" {
+		return fmt.Errorf("cannot determine HOME")
+	}
 	if err := os.MkdirAll(OmegaDir(), 0o700); err != nil {
 		return err
 	}

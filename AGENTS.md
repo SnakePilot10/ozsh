@@ -7,10 +7,10 @@ applying declarative Zsh prompts.
 
 Core stack:
 
-- Go 1.24+
+- Go 1.25+
 - Bubble Tea, Bubbles, and Lip Gloss
 - TOML configuration
-- GoReleaser, Homebrew, and AUR packaging
+- GoReleaser and AUR packaging for Linux and Termux
 - GitHub Actions CI
 
 ## Working rules
@@ -42,3 +42,5 @@ For release or installer changes, also run:
 scripts/release-smoke.sh
 scripts/install-smoke.sh
 ```
+
+Release artifacts support Linux and Android/Termux only.

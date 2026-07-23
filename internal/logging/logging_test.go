@@ -39,6 +39,23 @@ func TestLoggerNilReceiverIsNoop(t *testing.T) {
 	logger.Error("error")
 }
 
+func TestLoggerWithoutDirectoryDoesNotWriteToWorkingDirectory(t *testing.T) {
+	dir := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir(temp) error = %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	New("", false).Info("must not be written")
+	if _, err := os.Stat(filepath.Join(dir, "ozsh.log")); !os.IsNotExist(err) {
+		t.Fatalf("logger created ozsh.log without a config directory: %v", err)
+	}
+}
+
 func TestLoggerRotatesLargeLogFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ozsh.log")

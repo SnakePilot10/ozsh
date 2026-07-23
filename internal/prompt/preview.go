@@ -66,11 +66,14 @@ func renderPreviewSegment(cfg *config.Config, ctx *fakeContext, name string) str
 	if rendered == "" {
 		return ""
 	}
+	if segCfg.Icon != "" {
+		rendered = segCfg.Icon + " " + rendered
+	}
 	return ansiWrap(rendered, segCfg)
 }
 
 func ansiWrap(value string, cfg config.SegmentConfig) string {
-	open := ansiFG(cfg.FG)
+	open := ansiBG(cfg.BG) + ansiFG(cfg.FG)
 	if cfg.Bold {
 		open += "\x1b[1m"
 	}
@@ -78,6 +81,25 @@ func ansiWrap(value string, cfg config.SegmentConfig) string {
 		return value
 	}
 	return open + value + "\x1b[0m"
+}
+
+func ansiBG(color string) string {
+	if strings.HasPrefix(color, "#") && len(color) == 7 {
+		r, errR := strconv.ParseInt(color[1:3], 16, 64)
+		g, errG := strconv.ParseInt(color[3:5], 16, 64)
+		b, errB := strconv.ParseInt(color[5:7], 16, 64)
+		if errR == nil && errG == nil && errB == nil {
+			return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b)
+		}
+	}
+	colors := map[string]string{
+		"black": "40", "red": "41", "green": "42", "yellow": "43",
+		"blue": "44", "magenta": "45", "cyan": "46", "white": "47",
+	}
+	if code := colors[color]; code != "" {
+		return "\x1b[" + code + "m"
+	}
+	return ""
 }
 
 func ansiFG(color string) string {

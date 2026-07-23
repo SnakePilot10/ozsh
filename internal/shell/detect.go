@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 )
 
 func IsTermux() bool {
@@ -37,28 +36,34 @@ func TermuxPrefix() string {
 }
 
 func Home() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	if runtime.GOOS == "windows" {
-		return os.Getenv("USERPROFILE")
-	}
-	return ""
+	return os.Getenv("HOME")
 }
 
 func ZshrcPath() string {
+	if Home() == "" {
+		return ""
+	}
 	return filepath.Join(Home(), ".zshrc")
 }
 
 func OmegaDir() string {
+	if Home() == "" {
+		return ""
+	}
 	return filepath.Join(Home(), ".config", "ozsh")
 }
 
 func OmegaZshPath() string {
+	if OmegaDir() == "" {
+		return ""
+	}
 	return filepath.Join(OmegaDir(), "omega.zsh")
 }
 
 func BackupsDir() string {
+	if OmegaDir() == "" {
+		return ""
+	}
 	return filepath.Join(OmegaDir(), "backups")
 }
 
@@ -68,11 +73,17 @@ func HasZsh() bool {
 }
 
 func ZshrcExists() bool {
+	if ZshrcPath() == "" {
+		return false
+	}
 	_, err := os.Stat(ZshrcPath())
 	return err == nil
 }
 
 func ConfigExists() bool {
+	if OmegaDir() == "" {
+		return false
+	}
 	_, err := os.Stat(filepath.Join(OmegaDir(), "config.toml"))
 	return err == nil
 }

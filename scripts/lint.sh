@@ -31,7 +31,10 @@ if command -v shellcheck >/dev/null 2>&1; then
   echo "[lint] shellcheck"
   shellcheck install.sh scripts/*.sh
 else
-  echo "[lint] shellcheck not found; install shellcheck to lint shell scripts"
+  echo "[lint] shellcheck not found; install it before running --check"
+  if [[ "$check_only" -eq 1 ]]; then
+    exit 1
+  fi
 fi
 
 if command -v golangci-lint >/dev/null 2>&1; then
@@ -39,6 +42,9 @@ if command -v golangci-lint >/dev/null 2>&1; then
   golangci-lint run
 else
   echo "[lint] golangci-lint not found; run scripts/setup.sh to install it"
+  if [[ "$check_only" -eq 1 ]]; then
+    exit 1
+  fi
 fi
 
 echo "[lint] ok"

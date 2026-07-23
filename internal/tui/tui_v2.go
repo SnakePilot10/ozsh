@@ -59,8 +59,6 @@ type Model struct {
 	inputFocus   int
 	previewError string
 
-	tuiTheme string
-
 	pluginURL   textinput.Model
 	pluginLoad  textinput.Model
 	pluginFocus int
@@ -92,7 +90,6 @@ func NewModel(cfg *config.Config) Model {
 		cfg:        cfg,
 		previewCtx: prompt.DefaultPreviewContext(),
 		inputs:     inputs,
-		tuiTheme:   "dark",
 		pluginURL:  pluginURL,
 		pluginLoad: pluginLoad,
 	}
@@ -115,6 +112,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" || (msg.String() == "q" && m.tab != tabPreview && m.tab != tabPlugins) {
 			return m, tea.Quit
+		}
+		if m.busy {
+			return m, nil
 		}
 		if m.formAllowsGlobalNavigation(msg) {
 			switch msg.String() {
@@ -209,9 +209,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.saveCustomTheme()
 			}
 		case "t":
-			if m.tab == tabThemes {
-				m.nextTUITheme()
-			} else if m.tab == tabPlugins {
+			if m.tab == tabPlugins {
 				m.trustPluginAtCursor()
 			}
 		case "u":
@@ -416,13 +414,13 @@ func (m Model) apply() string {
 		return "applying configuration…"
 	}
 	if m.confirmApply {
-		return "planned .zshrc diff\n\n" + m.applyDiff + "\n\npress y to confirm or n/esc to cancel"
+		return "planned .zshrc diff\n\n" + m.applyDiff + "\n\napply also replaces config.toml and omega.zsh\npress y to confirm or n/esc to cancel"
 	}
 	before, after, err := shell.PreviewInjectBlock()
 	if err != nil {
 		return "preview error: " + err.Error()
 	}
-	return "planned .zshrc diff\n\n" + shell.DiffLines(before, after) + "\n\npress a to review and confirm"
+	return "planned .zshrc diff\n\n" + shell.DiffLines(before, after) + "\n\napply also replaces config.toml and omega.zsh\npress a to review and confirm"
 }
 
 func (m Model) doctor() string {
@@ -703,6 +701,7 @@ func (m *Model) applyThemeAtCursor() {
 	if len(names) == 0 || m.cursor < 0 || m.cursor >= len(names) {
 		return
 	}
+	original := cloneConfig(m.cfg)
 	preset := config.Presets[names[m.cursor]]
 	m.cfg.Theme = preset
 	if seg, ok := m.cfg.Prompt.Segments["user"]; ok {
@@ -713,24 +712,23 @@ func (m *Model) applyThemeAtCursor() {
 		seg.FG = preset.Error
 		m.cfg.Prompt.Segments["status"] = seg
 	}
-	m.msg = "theme applied: " + preset.Name
+	if err := config.Save(m.cfg); err != nil {
+		m.cfg = original
+		m.msg = "theme save error: " + err.Error()
+		return
+	}
+	m.msg = "theme applied and saved: " + preset.Name
 }
 
 func (m *Model) saveCustomTheme() {
+	original := cloneConfig(m.cfg)
 	m.cfg.Theme.Name = "custom"
-	m.msg = "custom theme stored in config"
-}
-
-func (m *Model) nextTUITheme() {
-	switch m.tuiTheme {
-	case "dark":
-		m.tuiTheme = "light"
-	case "light":
-		m.tuiTheme = "terminal"
-	default:
-		m.tuiTheme = "dark"
+	if err := config.Save(m.cfg); err != nil {
+		m.cfg = original
+		m.msg = "custom theme save error: " + err.Error()
+		return
 	}
-	m.msg = "TUI theme: " + m.tuiTheme
+	m.msg = "custom theme saved"
 }
 
 func (m Model) previewThemeConfig(name string) *config.Config {
@@ -755,7 +753,14 @@ func (m *Model) togglePluginAtCursor() {
 	if m.cursor < 0 || m.cursor >= len(m.cfg.Plugins.Items) {
 		return
 	}
+	original := cloneConfig(m.cfg)
 	m.cfg.Plugins.Items[m.cursor].Enabled = !m.cfg.Plugins.Items[m.cursor].Enabled
+	if err := config.Save(m.cfg); err != nil {
+		m.cfg = original
+		m.msg = "plugin save error: " + err.Error()
+		return
+	}
+	m.msg = "plugin state saved"
 }
 
 func (m *Model) trustPluginAtCursor() {
@@ -763,11 +768,17 @@ func (m *Model) trustPluginAtCursor() {
 		return
 	}
 	name := m.cfg.Plugins.Items[m.cursor].Name
+	original := cloneConfig(m.cfg)
 	if err := plugins.SetTrusted(m.cfg, name, true); err != nil {
 		m.msg = "plugin trust error: " + err.Error()
 		return
 	}
-	m.msg = "plugin trusted: " + name
+	if err := config.Save(m.cfg); err != nil {
+		m.cfg = original
+		m.msg = "plugin trust save error: " + err.Error()
+		return
+	}
+	m.msg = "plugin trusted and saved: " + name
 }
 
 func (m *Model) untrustPluginAtCursor() {
@@ -775,11 +786,17 @@ func (m *Model) untrustPluginAtCursor() {
 		return
 	}
 	name := m.cfg.Plugins.Items[m.cursor].Name
+	original := cloneConfig(m.cfg)
 	if err := plugins.SetTrusted(m.cfg, name, false); err != nil {
 		m.msg = "plugin untrust error: " + err.Error()
 		return
 	}
-	m.msg = "plugin untrusted: " + name
+	if err := config.Save(m.cfg); err != nil {
+		m.cfg = original
+		m.msg = "plugin untrust save error: " + err.Error()
+		return
+	}
+	m.msg = "plugin untrusted and saved: " + name
 }
 
 func (m *Model) addPluginFromInputs() {
@@ -847,7 +864,8 @@ func (i segmentItem) Description() string {
 type applyResult string
 
 func doApply(cfg *config.Config) tea.Cmd {
-	return func() tea.Msg { return applyResult(apply(cfg)) }
+	snapshot := cloneConfig(cfg)
+	return func() tea.Msg { return applyResult(apply(snapshot)) }
 }
 
 func apply(cfg *config.Config) string {

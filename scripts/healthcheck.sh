@@ -26,7 +26,7 @@ HOME="$TMP/home" "$BIN" preview >/dev/null
 echo "[healthcheck] apply"
 HOME="$TMP/home" "$BIN" apply >/dev/null
 test -f "$TMP/home/.config/ozsh/omega.zsh"
-grep -q 'source "$HOME/.config/ozsh/omega.zsh"' "$TMP/home/.zshrc"
+grep -Fq "source \"\$HOME/.config/ozsh/omega.zsh\"" "$TMP/home/.zshrc"
 
 if command -v zsh >/dev/null 2>&1; then
   echo "[healthcheck] generated zsh syntax"

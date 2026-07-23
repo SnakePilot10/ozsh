@@ -95,6 +95,49 @@ func TestLoadRejectsFutureConfigVersion(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsUnknownConfigKey(t *testing.T) {
+	withTempHome(t)
+	if err := os.MkdirAll(Dir(), 0o700); err != nil {
+		t.Fatalf("MkdirAll(config dir) error = %v", err)
+	}
+	data := "version = 1\nunknown_setting = true\n"
+	if err := os.WriteFile(Path(), []byte(data), 0o600); err != nil {
+		t.Fatalf("WriteFile(config) error = %v", err)
+	}
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "unknown config key") {
+		t.Fatalf("Load() error = %v, want unknown key error", err)
+	}
+}
+
+func TestLoadExistingDoesNotCreateMissingConfig(t *testing.T) {
+	withTempHome(t)
+	if _, err := LoadExisting(); err == nil {
+		t.Fatal("LoadExisting() error = nil for missing config")
+	}
+	if _, err := os.Stat(Path()); !os.IsNotExist(err) {
+		t.Fatalf("LoadExisting() created config: %v", err)
+	}
+}
+
+func TestValidateRejectsNegativeVersion(t *testing.T) {
+	cfg := Default()
+	cfg.Version = -1
+	if err := Validate(cfg); err == nil {
+		t.Fatal("Validate(negative version) error = nil")
+	}
+}
+
+func TestValidateMigratesOmegaStyleToSimple(t *testing.T) {
+	cfg := Default()
+	cfg.Prompt.Style = "omega"
+	if err := Validate(cfg); err != nil {
+		t.Fatalf("Validate(omega style) error = %v", err)
+	}
+	if cfg.Prompt.Style != "simple" {
+		t.Fatalf("Validate(omega style) = %q, want simple", cfg.Prompt.Style)
+	}
+}
+
 func TestLoadReadsExistingConfig(t *testing.T) {
 	withTempHome(t)
 	cfg := Default()
