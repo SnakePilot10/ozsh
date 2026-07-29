@@ -87,9 +87,72 @@ ozsh_prompt_text_from_stdin() {
 
 ozsh_dollar='$'
 ozsh_backtick='` + "`" + `'
+
+ozsh_segment() {
+  local text="$1"
+  local icon="$2"
+  local leading="$3"
+  local trailing="$4"
+  local pad_left="$5"
+  local pad_right="$6"
+  local open="$7"
+  local close="$8"
+  local left_padding=""
+  local right_padding=""
+  local i
+  [[ -n "$icon" ]] && icon+=" "
+  for (( i = 0; i < pad_left; i++ )); do left_padding+=" "; done
+  for (( i = 0; i < pad_right; i++ )); do right_padding+=" "; done
+  print -r -- "${open}$(ozsh_prompt_text "${left_padding}${leading}${icon}${text}${trailing}${right_padding}")${close}"
+}
 `)
 	b.WriteString("\n")
 	genPluginSources(&b, cfg)
+
+	if usesSegmentCache(cfg) {
+		b.WriteString(`zmodload zsh/datetime 2>/dev/null || true
+typeset -gA _ozsh_cache_values
+typeset -gA _ozsh_cache_times
+
+ozsh_cached() {
+  local key="$1"
+  local ttl="$2"
+  shift 2
+  local now="${EPOCHSECONDS:-$SECONDS}"
+  local cached_at="${_ozsh_cache_times[$key]:-0}"
+  REPLY=""
+  if [[ -n "${_ozsh_cache_values[$key]+set}" ]] && (( now - cached_at < ttl )); then
+    REPLY="${_ozsh_cache_values[$key]}"
+    return
+  fi
+  local value
+  value="$("$@")" || return
+  _ozsh_cache_values[$key]="$value"
+  _ozsh_cache_times[$key]="$now"
+  REPLY="$value"
+}
+`)
+		b.WriteString("\n")
+	}
+	if cfg.Prompt.OSC7 {
+		b.WriteString(`ozsh_uri_encode() {
+  local LC_ALL=C
+  local input="$1"
+  local output=""
+  local char encoded
+  local i
+  for (( i = 1; i <= ${#input}; i++ )); do
+    char="${input[$i]}"
+    case "$char" in
+      [A-Za-z0-9.~_/-]) output+="$char" ;;
+      *) printf -v encoded '%%%02X' "'$char"; output+="$encoded" ;;
+    esac
+  done
+  print -r -- "$output"
+}
+`)
+		b.WriteString("\n")
+	}
 
 	if segmentEnabled(cfg, "git") {
 		b.WriteString(`ozsh_git_branch() {
@@ -130,6 +193,31 @@ ozsh_backtick='` + "`" + `'
 `)
 		b.WriteString("\n")
 	}
+	if segmentEnabled(cfg, "python") {
+		b.WriteString(`ozsh_python_version() {
+  [[ -f pyproject.toml || -f requirements.txt || -f setup.py || -n "$VIRTUAL_ENV" ]] || return
+  local python_cmd=""
+  if command -v python3 >/dev/null 2>&1; then
+    python_cmd=python3
+  elif command -v python >/dev/null 2>&1; then
+    python_cmd=python
+  else
+    return
+  fi
+  "$python_cmd" --version 2>&1 | awk '{print $2}'
+}
+`)
+		b.WriteString("\n")
+	}
+	if segmentEnabled(cfg, "rust") {
+		b.WriteString(`ozsh_rust_version() {
+  [[ -f Cargo.toml ]] || return
+  command -v rustc >/dev/null 2>&1 || return
+  rustc --version 2>/dev/null | awk '{print $2}'
+}
+`)
+		b.WriteString("\n")
+	}
 	if segmentEnabled(cfg, "battery") {
 		b.WriteString(`ozsh_battery_level() {
   local capacity=""
@@ -144,10 +232,27 @@ ozsh_backtick='` + "`" + `'
 		b.WriteString("\n")
 	}
 
+	if segmentEnabled(cfg, "execution_time") {
+		b.WriteString(`zmodload zsh/datetime 2>/dev/null || true
+ozsh_preexec() {
+  _ozsh_command_started="${EPOCHREALTIME:-0}"
+}
+`)
+		b.WriteString("\n")
+	}
+
 	b.WriteString("ozsh_prompt() {\n")
 	b.WriteString("  local last_status=\"$?\"\n")
+	if segmentEnabled(cfg, "execution_time") {
+		b.WriteString("  local execution_time_ms=\"\"\n")
+		b.WriteString("  if [[ -n \"${_ozsh_command_started:-}\" && -n \"${EPOCHREALTIME:-}\" ]]; then\n")
+		b.WriteString("    printf -v execution_time_ms '%.0f' \"$(( (EPOCHREALTIME - _ozsh_command_started) * 1000 ))\"\n")
+		b.WriteString("    unset _ozsh_command_started\n")
+		b.WriteString("  fi\n")
+	}
 	b.WriteString("  local parts=()\n")
 	b.WriteString("  local right_parts=()\n\n")
+	b.WriteString("  local transient_parts=()\n\n")
 	for _, name := range cfg.Prompt.Order {
 		seg, ok := cfg.Prompt.Segments[name]
 		if !ok || !segmentActive(cfg, name, seg) {
@@ -161,6 +266,15 @@ ozsh_backtick='` + "`" + `'
 			continue
 		}
 		genSegment(&b, "right_parts", name, seg)
+	}
+	if cfg.Prompt.TransientPrompt {
+		for _, name := range cfg.Prompt.TransientOrder {
+			seg, ok := cfg.Prompt.Segments[name]
+			if !ok || !segmentActive(cfg, name, seg) {
+				continue
+			}
+			genSegment(&b, "transient_parts", name, seg)
+		}
 	}
 
 	b.WriteString("\n")
@@ -178,7 +292,35 @@ ozsh_backtick='` + "`" + `'
 	} else {
 		b.WriteString("  RPROMPT=\"\"\n")
 	}
-	b.WriteString("}\n\nif (( ${precmd_functions[(Ie)ozsh_prompt]:-0} == 0 )); then\n  precmd_functions+=(ozsh_prompt)\nfi\n")
+	if cfg.Prompt.TransientPrompt {
+		b.WriteString("  OZSH_TRANSIENT_PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${transient_parts[@]}\") ❯ \"\n")
+	}
+	if cfg.Prompt.OSC7 {
+		b.WriteString("  printf '\\e]7;file://%s%s\\a' \"$(ozsh_uri_encode \"$HOST\")\" \"$(ozsh_uri_encode \"$PWD\")\"\n")
+	}
+	if cfg.Prompt.OSC133 {
+		b.WriteString("  printf '\\e]133;D;%d\\a\\e]133;A\\a' \"$last_status\"\n")
+	}
+	b.WriteString("}\n\n")
+	b.WriteString("if (( ${precmd_functions[(Ie)ozsh_prompt]:-0} == 0 )); then\n  precmd_functions+=(ozsh_prompt)\nfi\n")
+	if segmentEnabled(cfg, "execution_time") {
+		b.WriteString("(( ${preexec_functions[(Ie)ozsh_preexec]} )) || preexec_functions+=(ozsh_preexec)\n")
+	} else {
+		b.WriteString("preexec_functions=(\"${(@)preexec_functions:#ozsh_preexec}\")\n")
+	}
+	b.WriteString("if [[ -o interactive ]]; then\n  autoload -Uz add-zle-hook-widget\n  add-zle-hook-widget -d line-finish ozsh_transient_line_finish 2>/dev/null || true\nfi\n")
+	if cfg.Prompt.TransientPrompt {
+		b.WriteString(`if [[ -o interactive ]]; then
+  ozsh_transient_line_finish() {
+    [[ -n "${OZSH_TRANSIENT_PROMPT:-}" ]] || return
+    PROMPT="$OZSH_TRANSIENT_PROMPT"
+    RPROMPT=""
+    zle reset-prompt
+  }
+  add-zle-hook-widget line-finish ozsh_transient_line_finish
+fi
+`)
+	}
 	return b.String(), nil
 }
 
@@ -189,79 +331,90 @@ func cloneConfig(cfg *config.Config) *config.Config {
 	clone := *cfg
 	clone.Prompt.Order = append([]string(nil), cfg.Prompt.Order...)
 	clone.Prompt.RightOrder = append([]string(nil), cfg.Prompt.RightOrder...)
+	clone.Prompt.TransientOrder = append([]string(nil), cfg.Prompt.TransientOrder...)
 	clone.Prompt.Segments = make(map[string]config.SegmentConfig, len(cfg.Prompt.Segments))
 	for name, segment := range cfg.Prompt.Segments {
 		clone.Prompt.Segments[name] = segment
 	}
 	clone.Plugins.Items = append([]config.PluginItem(nil), cfg.Plugins.Items...)
+	clone.Theme.Requires = append([]string(nil), cfg.Theme.Requires...)
 	return &clone
 }
 
 func genSegment(b *strings.Builder, target, name string, cfg config.SegmentConfig) {
-	open := styleOpen(cfg)
-	close := styleClose(cfg)
-	prefix := ""
-	if cfg.Icon != "" {
-		iconVar := "ozsh_icon_" + target + "_" + name
-		fmt.Fprintf(b, "  local %s\n", iconVar)
-		fmt.Fprintf(b, "  %s=\"$(ozsh_prompt_text %s)\"\n", iconVar, zshSingleQuote(cfg.Icon))
-		prefix = "${" + iconVar + "} "
+	condition := zshSegmentCondition(cfg)
+	if condition != "" {
+		fmt.Fprintf(b, "  if %s; then\n", condition)
 	}
+	genSegmentBody(b, target, name, cfg)
+	if condition != "" {
+		b.WriteString("  fi\n")
+	}
+}
+
+func genSegmentBody(b *strings.Builder, target, name string, cfg config.SegmentConfig) {
 	switch name {
 	case "user":
-		fmt.Fprintf(b, "  %s+=(\"%s%s%%n%s\")\n", target, open, prefix, close)
+		genStyledAppend(b, target, `"$USERNAME"`, cfg)
 	case "cwd":
-		fmt.Fprintf(b, "  %s+=(\"%s%s%%~%s\")\n", target, open, prefix, close)
+		b.WriteString("  local ozsh_cwd=\"$PWD\"\n")
+		b.WriteString("  [[ -n \"$HOME\" && \"$ozsh_cwd\" == \"$HOME\"* ]] && ozsh_cwd=\"~${ozsh_cwd#$HOME}\"\n")
+		genStyledAppend(b, target, `"$ozsh_cwd"`, cfg)
 	case "git":
-		fmt.Fprintf(b, `  local git_branch
-  git_branch="$(ozsh_git_branch | ozsh_prompt_text_from_stdin)"
-  [[ -n "$git_branch" ]] && %s+=("%s%s${git_branch}%s")
-`, target, open, prefix, close)
+		b.WriteString("  local git_branch\n")
+		genCachedAssignment(b, "git_branch", "git:${PWD}", cfg.CacheTTL, "ozsh_git_branch")
+		genStyledAppendIfSet(b, target, "git_branch", cfg)
 	case "status":
 		if cfg.ShowSuccess {
-			fmt.Fprintf(b, `  if [[ "$last_status" == "0" ]]; then
-    %s+=("%s%s✓%s")
-  else
-    %s+=("%s%s✘ ${last_status}%s")
-  fi
-`, target, open, prefix, close, target, open, prefix, close)
+			b.WriteString("  local ozsh_status_text\n")
+			b.WriteString("  [[ \"$last_status\" == \"0\" ]] && ozsh_status_text=\"✓\" || ozsh_status_text=\"✘ ${last_status}\"\n")
+			genStyledAppend(b, target, `"$ozsh_status_text"`, cfg)
 		} else {
-			fmt.Fprintf(b, `  if [[ "$last_status" != "0" ]]; then
-    %s+=("%s%s✘ ${last_status}%s")
-  fi
-`, target, open, prefix, close)
+			b.WriteString("  if [[ \"$last_status\" != \"0\" ]]; then\n")
+			genStyledAppend(b, target, `"✘ ${last_status}"`, cfg)
+			b.WriteString("  fi\n")
 		}
 	case "time":
-		fmt.Fprintf(b, "  %s+=(\"%s%s%%*%s\")\n", target, open, prefix, close)
+		b.WriteString("  local ozsh_time_text=\"${(%):-%*}\"\n")
+		genStyledAppend(b, target, `"$ozsh_time_text"`, cfg)
 	case "host":
-		fmt.Fprintf(b, "  %s+=(\"%s%s%%m%s\")\n", target, open, prefix, close)
+		genStyledAppend(b, target, `"$HOST"`, cfg)
 	case "venv":
-		fmt.Fprintf(b, `  local venv_name
-  venv_name="$(ozsh_venv_name | ozsh_prompt_text_from_stdin)"
-  [[ -n "$venv_name" ]] && %s+=("%s%s${venv_name}%s")
-`, target, open, prefix, close)
+		b.WriteString(`  local venv_name
+		venv_name="$(ozsh_venv_name)"
+`)
+		genStyledAppendIfSet(b, target, "venv_name", cfg)
 	case "node":
-		fmt.Fprintf(b, `  local node_version
-  node_version="$(ozsh_node_version | ozsh_prompt_text_from_stdin)"
-  [[ -n "$node_version" ]] && %s+=("%s%s${node_version}%s")
-`, target, open, prefix, close)
+		b.WriteString("  local node_version\n")
+		genCachedAssignment(b, "node_version", "node:${PWD}", cfg.CacheTTL, "ozsh_node_version")
+		genStyledAppendIfSet(b, target, "node_version", cfg)
 	case "go":
-		fmt.Fprintf(b, `  local go_version
-  go_version="$(ozsh_go_version | ozsh_prompt_text_from_stdin)"
-  [[ -n "$go_version" ]] && %s+=("%s%s${go_version}%s")
-`, target, open, prefix, close)
+		b.WriteString("  local go_version\n")
+		genCachedAssignment(b, "go_version", "go:${PWD}", cfg.CacheTTL, "ozsh_go_version")
+		genStyledAppendIfSet(b, target, "go_version", cfg)
 	case "battery":
-		fmt.Fprintf(b, `  local battery_level
-  battery_level="$(ozsh_battery_level | ozsh_prompt_text_from_stdin)"
-  [[ -n "$battery_level" ]] && %s+=("%s%s${battery_level}%s")
-`, target, open, prefix, close)
+		b.WriteString("  local battery_level\n")
+		genCachedAssignment(b, "battery_level", "battery", cfg.CacheTTL, "ozsh_battery_level")
+		genStyledAppendIfSet(b, target, "battery_level", cfg)
 	case "jobs":
-		fmt.Fprintf(b, `  local job_count
+		b.WriteString(`  local job_count
   job_count="$(jobs -p 2>/dev/null | wc -l | tr -d ' ')"
-  if [[ "$job_count" != "0" ]]; then
-    %s+=("%s%s${job_count} jobs%s")
-  fi
-`, target, open, prefix, close)
+`)
+		b.WriteString("  if [[ \"$job_count\" != \"0\" ]]; then\n")
+		genStyledAppend(b, target, `"${job_count} jobs"`, cfg)
+		b.WriteString("  fi\n")
+	case "execution_time":
+		b.WriteString("  if [[ -n \"$execution_time_ms\" ]]; then\n")
+		genStyledAppend(b, target, `"${execution_time_ms}ms"`, cfg)
+		b.WriteString("  fi\n")
+	case "python":
+		b.WriteString("  local python_version\n")
+		genCachedAssignment(b, "python_version", "python:${PWD}:${VIRTUAL_ENV}", cfg.CacheTTL, "ozsh_python_version")
+		genStyledAppendIfSet(b, target, "python_version", cfg)
+	case "rust":
+		b.WriteString("  local rust_version\n")
+		genCachedAssignment(b, "rust_version", "rust:${PWD}", cfg.CacheTTL, "ozsh_rust_version")
+		genStyledAppendIfSet(b, target, "rust_version", cfg)
 	}
 }
 
@@ -334,14 +487,110 @@ func segmentActive(cfg *config.Config, name string, segment config.SegmentConfig
 
 func isHeavySegment(name string) bool {
 	switch name {
-	case "git", "node", "go", "battery":
+	case "git", "node", "go", "python", "rust", "battery":
 		return true
 	default:
 		return false
 	}
 }
 
+func usesSegmentCache(cfg *config.Config) bool {
+	for name, segment := range cfg.Prompt.Segments {
+		if segmentActive(cfg, name, segment) && segment.CacheTTL > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func genCachedAssignment(b *strings.Builder, variable, key string, ttl int, command string) {
+	if ttl <= 0 {
+		fmt.Fprintf(b, "  %s=\"$(%s)\"\n", variable, command)
+		return
+	}
+	fmt.Fprintf(b, "  ozsh_cached %s %d %s\n", strconv.Quote(key), ttl, command)
+	fmt.Fprintf(b, "  %s=\"$REPLY\"\n", variable)
+}
+
+func zshSegmentCondition(segment config.SegmentConfig) string {
+	conditions := make([]string, 0, 2)
+	switch segment.When {
+	case "git_repository":
+		conditions = append(conditions, "git rev-parse --is-inside-work-tree >/dev/null 2>&1")
+	case "virtualenv":
+		conditions = append(conditions, `[[ -n "${VIRTUAL_ENV:-}" ]]`)
+	case "command_success":
+		conditions = append(conditions, `[[ "$last_status" == "0" ]]`)
+	case "command_failure":
+		conditions = append(conditions, `[[ "$last_status" != "0" ]]`)
+	}
+	if segment.WhenEnv != "" {
+		conditions = append(conditions, fmt.Sprintf(`[[ -n "${%s:-}" ]]`, segment.WhenEnv))
+	}
+	return strings.Join(conditions, " && ")
+}
+
+func genStyledAppendIfSet(b *strings.Builder, target, variable string, cfg config.SegmentConfig) {
+	fmt.Fprintf(b, "  if [[ -n \"$%s\" ]]; then\n", variable)
+	genStyledAppend(b, target, fmt.Sprintf(`"$%s"`, variable), cfg)
+	b.WriteString("  fi\n")
+}
+
+func genStyledAppend(b *strings.Builder, target, valueExpression string, cfg config.SegmentConfig) {
+	fmt.Fprintf(b, "  %s+=(\"$(ozsh_segment %s %s %s %s %d %d %s %s)\")\n",
+		target,
+		valueExpression,
+		zshSingleQuote(cfg.Icon),
+		zshSingleQuote(cfg.LeadingSymbol),
+		zshSingleQuote(cfg.TrailingSymbol),
+		cfg.PaddingLeft,
+		cfg.PaddingRight,
+		styleOpenExpression(cfg),
+		zshSingleQuote(styleClose(cfg)),
+	)
+}
+
+func styleOpenExpression(cfg config.SegmentConfig) string {
+	open := fgOpen(cfg.FG) + bgOpen(cfg.BG)
+	if cfg.Bold {
+		open += "%B"
+	}
+	if cfg.Italic {
+		open += "%I"
+	}
+	if cfg.Underline {
+		open += "%U"
+	}
+	if strings.Contains(open, "$(") {
+		return `"` + open + `"`
+	}
+	return zshSingleQuote(open)
+}
+
+func styleClose(cfg config.SegmentConfig) string {
+	var close strings.Builder
+	if cfg.Underline {
+		close.WriteString("%u")
+	}
+	if cfg.Italic {
+		close.WriteString("%i")
+	}
+	if cfg.Bold {
+		close.WriteString("%b")
+	}
+	if cfg.BG != "" {
+		close.WriteString("%k")
+	}
+	if cfg.FG != "" {
+		close.WriteString("%f")
+	}
+	return close.String()
+}
+
 func fgOpen(color string) string {
+	if color == "" {
+		return ""
+	}
 	if strings.HasPrefix(color, "#") {
 		return "$(ozsh_color " + strconv.Quote(color) + " " + strconv.Quote(fallbackColor(color)) + ")"
 	}
@@ -356,18 +605,6 @@ func bgOpen(color string) string {
 		return "$(ozsh_bg_color " + strconv.Quote(color) + " " + strconv.Quote(fallbackColor(color)) + ")"
 	}
 	return "%K{" + color + "}"
-}
-
-func styleOpen(cfg config.SegmentConfig) string {
-	return bgOpen(cfg.BG) + fgOpen(cfg.FG) + boldOpen(cfg.Bold)
-}
-
-func styleClose(cfg config.SegmentConfig) string {
-	close := boldClose(cfg.Bold) + "%f"
-	if cfg.BG != "" && cfg.BG != "default" {
-		close += "%k"
-	}
-	return close
 }
 
 func usesHexColor(cfg *config.Config) bool {

@@ -1,9 +1,11 @@
 [theme]
 name = "neon-red"
+description = "Dark theme with neon red accents"
+tier = "unicode"
+requires = ["unicode"]
 accent = "#ff003c"
 background = "#09090d"
 muted = "#6b6b80"
 success = "#00ff9f"
 warning = "#ffe600"
 error = "#ff003c"
-

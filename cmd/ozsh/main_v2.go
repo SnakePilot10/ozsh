@@ -53,6 +53,8 @@ func main() {
 		runReset()
 	case "theme":
 		runTheme(args[1:])
+	case "config":
+		runConfig(args[1:])
 	case "plugin":
 		runPlugin(args[1:])
 	case "tui":
@@ -90,6 +92,7 @@ func printUsage() {
 	fmt.Println("  doctor     Validate environment and config (--report writes diagnostics)")
 	fmt.Println("  reset      Remove the ozsh block from .zshrc")
 	fmt.Println("  theme      List, preview, or apply prompt themes")
+	fmt.Println("  config     Inspect or apply config migrations")
 	fmt.Println("  plugin     Manage manual plugins")
 	fmt.Println("  tui        Open the terminal UI")
 	fmt.Println("  version    Print version")
@@ -327,6 +330,9 @@ func runDoctor(args ...string) {
 	}
 	if cfg, err := config.LoadExisting(); err == nil && cfg != nil {
 		fmt.Println("[✓] config.toml exists and is valid")
+		for _, warning := range themeRequirementWarnings(cfg.Theme) {
+			fmt.Printf("[!] %s\n", warning)
+		}
 	} else {
 		fmt.Printf("[✗] config.toml invalid or unavailable: %v\n", err)
 		ok = false
@@ -379,6 +385,22 @@ func runDoctor(args ...string) {
 	}
 	fmt.Println("Some checks failed. Run 'ozsh apply' after fixing.")
 	os.Exit(1)
+}
+
+func themeRequirementWarnings(theme config.ThemeConfig) []string {
+	warnings := []string{}
+	locale := strings.ToUpper(os.Getenv("LC_ALL") + os.Getenv("LC_CTYPE") + os.Getenv("LANG"))
+	for _, requirement := range theme.Requires {
+		switch requirement {
+		case "unicode":
+			if locale != "" && !strings.Contains(locale, "UTF-8") && !strings.Contains(locale, "UTF8") {
+				warnings = append(warnings, fmt.Sprintf("theme %s requires a UTF-8 locale", theme.Name))
+			}
+		case "nerd-font", "powerline":
+			warnings = append(warnings, fmt.Sprintf("theme %s requires a %s-capable font", theme.Name, requirement))
+		}
+	}
+	return warnings
 }
 
 func writeDoctorReport(ok bool) (string, error) {
@@ -493,7 +515,7 @@ func runReset() {
 
 func runTheme(args []string) {
 	if len(args) == 0 {
-		fmt.Println("Usage: ozsh theme <list|apply|preview>")
+		fmt.Println("Usage: ozsh theme <list|apply|preview|import|export|validate>")
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -524,6 +546,50 @@ func runTheme(args []string) {
 			exitConfigError(err)
 		}
 		fmt.Printf("✓ theme applied: %s\n", preset.Name)
+	case "import":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "theme import requires a TOML file")
+			os.Exit(1)
+		}
+		theme, err := config.LoadTheme(args[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "theme import error: %v\n", err)
+			os.Exit(1)
+		}
+		cfg, err := config.Load()
+		if err != nil {
+			exitConfigError(err)
+		}
+		applyTheme(cfg, theme)
+		if err := config.Save(cfg); err != nil {
+			exitConfigError(err)
+		}
+		fmt.Printf("✓ theme imported: %s\n", theme.Name)
+	case "export":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "theme export requires a destination TOML file")
+			os.Exit(1)
+		}
+		cfg, err := config.Load()
+		if err != nil {
+			exitConfigError(err)
+		}
+		if err := config.SaveTheme(args[1], cfg.Theme); err != nil {
+			fmt.Fprintf(os.Stderr, "theme export error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✓ theme exported: %s\n", args[1])
+	case "validate":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "theme validate requires a TOML file")
+			os.Exit(1)
+		}
+		theme, err := config.LoadTheme(args[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "theme invalid: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✓ theme valid: %s (%s)\n", theme.Name, theme.Tier)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown theme command: %s\n", args[0])
 		os.Exit(1)
@@ -544,7 +610,7 @@ func applyTheme(cfg *config.Config, preset config.ThemeConfig) {
 
 func runPlugin(args []string) {
 	if len(args) == 0 {
-		fmt.Println("Usage: ozsh plugin <list|add|remove|enable|disable|trust|untrust>")
+		fmt.Println("Usage: ozsh plugin <list|add|remove|enable|disable|trust|untrust|inspect|update>")
 		fmt.Println("       ozsh plugin add <https-url> <load-file>")
 		os.Exit(1)
 	}
@@ -618,10 +684,66 @@ func runPlugin(args []string) {
 			exitConfigError(err)
 		}
 		fmt.Printf("✓ plugin %s: %s\n", args[0], args[1])
+	case "inspect":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "plugin inspect requires a name")
+			os.Exit(1)
+		}
+		item, err := plugins.Inspect(cfg, args[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "plugin inspect error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("name: %s\nrepository: %s\nrevision: %s\ninstalled_at: %s\nload: %s\nenabled: %t\ntrusted: %t\n",
+			item.Name, item.Repository, item.Revision, item.InstalledAt, pluginLoadPath(item), item.Enabled, item.Trusted)
+	case "update":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "plugin update requires a name")
+			os.Exit(1)
+		}
+		changed, updateErr := plugins.Update(cfg, args[1])
+		if err := config.Save(cfg); err != nil {
+			exitConfigError(err)
+		}
+		if updateErr != nil {
+			fmt.Fprintf(os.Stderr, "plugin update error: %v\n", updateErr)
+			os.Exit(1)
+		}
+		if changed {
+			fmt.Printf("✓ plugin updated and trust revoked: %s\n", args[1])
+		} else {
+			fmt.Printf("✓ plugin already up to date: %s\n", args[1])
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown plugin command: %s\n", args[0])
 		os.Exit(1)
 	}
+}
+
+func runConfig(args []string) {
+	if len(args) == 0 || args[0] != "migrate" {
+		fmt.Println("Usage: ozsh config migrate [--dry-run]")
+		return
+	}
+	migration, err := config.PendingMigration()
+	if err != nil {
+		exitConfigError(err)
+	}
+	if migration == nil {
+		fmt.Println("config is up to date")
+		return
+	}
+	fmt.Printf("config migration: v%d -> v%d\n", migration.FromVersion, migration.ToVersion)
+	for _, change := range migration.Changes {
+		fmt.Printf("- %s\n", change)
+	}
+	if len(args) > 1 && args[1] == "--dry-run" {
+		return
+	}
+	if _, err := config.Load(); err != nil {
+		exitConfigError(err)
+	}
+	fmt.Println("✓ config migrated with backup")
 }
 
 func runTUI() {
@@ -639,7 +761,7 @@ func pluginLoadPath(item config.PluginItem) string {
 }
 
 func suggestCommand(input string) string {
-	commands := []string{"preview", "apply", "doctor", "reset", "theme", "plugin", "tui", "version", "update"}
+	commands := []string{"preview", "apply", "doctor", "reset", "theme", "config", "plugin", "tui", "version", "update"}
 	sort.Slice(commands, func(i, j int) bool {
 		return editDistance(input, commands[i]) < editDistance(input, commands[j])
 	})

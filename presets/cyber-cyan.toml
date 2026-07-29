@@ -1,9 +1,11 @@
 [theme]
 name = "cyber-cyan"
+description = "High-contrast cyan theme"
+tier = "unicode"
+requires = ["unicode"]
 accent = "#00f5ff"
 background = "#09090d"
 muted = "#6b6b80"
 success = "#00ff9f"
 warning = "#ffe600"
 error = "#ff003c"
-

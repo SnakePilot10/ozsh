@@ -58,6 +58,12 @@ ozsh reset
 ozsh theme list
 ozsh theme preview cyber-cyan
 ozsh theme apply cyber-cyan
+ozsh theme import ./theme.toml
+ozsh theme export ./theme.toml
+ozsh theme validate ./theme.toml
+
+ozsh config migrate --dry-run
+ozsh config migrate
 
 ozsh plugin list
 ozsh plugin add https://github.com/user/plugin.git plugin.zsh
@@ -65,6 +71,8 @@ ozsh plugin enable plugin
 ozsh plugin disable plugin
 ozsh plugin trust plugin
 ozsh plugin untrust plugin
+ozsh plugin inspect plugin
+ozsh plugin update plugin
 ozsh plugin remove plugin
 
 ozsh tui
@@ -86,16 +94,20 @@ and replaces the currently running binary.
 Configuration lives at `~/.config/ozsh/config.toml`.
 
 ```toml
-version = 1
+version = 2
 
 [prompt]
 style = "simple"
 newline = true
 right_prompt = false
+transient_prompt = false
+osc7 = false
+osc133 = false
 disable_heavy_segments = false
 separator = "  "
-order = ["user", "cwd", "git", "status"]
+order = ["user", "cwd", "git", "status", "execution_time", "python", "rust"]
 right_order = []
+transient_order = ["status", "cwd"]
 ```
 
 Available segments:
@@ -111,16 +123,28 @@ Available segments:
 - `go`: Go version when `go.mod` exists.
 - `battery`: Linux or Termux battery level.
 - `jobs`: background job count.
+- `execution_time`: elapsed time for the previous command.
+- `python`: Python version in Python projects or virtual environments.
+- `rust`: Rust version in Cargo projects.
 
 Colors accept Zsh color names or six-digit hex values such as `#00f5ff`.
 Each segment can also define a literal `icon` and foreground/background colors;
 dynamic prompt text and icons are escaped before Zsh renders them.
-`right_order` controls `RPROMPT`. Set `disable_heavy_segments = true` to skip
-runtime-heavy segments such as Git, Node.js, Go, and battery detection.
+`right_order` controls `RPROMPT`; `transient_order` controls the compact prompt
+shown after a command is accepted. OSC 7 and OSC 133 integrations are opt-in.
+Set `disable_heavy_segments = true` to skip runtime-heavy segments such as Git,
+Node.js, Go, Python, Rust, and battery detection.
 
-The `version` field is the stable config schema version. Pre-v1 configs without
-that field are migrated automatically after creating a timestamped backup next to
-`config.toml`. Future schema versions are rejected instead of being rewritten.
+Segments support `italic`, `underline`, padding, leading/trailing symbols,
+`when`, `when_env`, and `cache_ttl_seconds`. Supported typed conditions are
+`git_repository`, `virtualenv`, `command_success`, and `command_failure`. Cache
+entries live only in the current Zsh process and execute registered functions
+without `eval`.
+
+The `version` field is the stable config schema version. Older configs are
+migrated automatically after creating a timestamped backup next to `config.toml`.
+Use `ozsh config migrate --dry-run` to inspect a pending migration. Future schema
+versions are rejected instead of being rewritten.
 
 ## Themes
 
@@ -131,6 +155,8 @@ Built-in presets:
 - `matrix-green`
 
 Preset files are stored under `presets/` for users and packagers.
+Themes declare an `ascii`, `unicode`, `nerd-font`, or `powerline` portability
+tier and optional requirements. Theme import, export, and validation use TOML.
 
 ## Manual plugins
 
@@ -141,6 +167,8 @@ trusted, readable, a regular file under `$HOME`, and not a symlink.
 
 Trusting a plugin means allowing third-party code to execute in Zsh. Review it
 before running `ozsh plugin trust <name>`.
+`ozsh plugin update` uses `git pull --ff-only`, records the resulting commit,
+and automatically revokes trust whenever plugin content changes.
 
 ## TUI
 

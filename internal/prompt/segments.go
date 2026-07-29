@@ -9,45 +9,54 @@ import (
 type segmentFunc func(cfg config.SegmentConfig, ctx *fakeContext) string
 
 var segmentRegistry = map[string]segmentFunc{
-	"user":    renderUser,
-	"cwd":     renderCwd,
-	"git":     renderGit,
-	"status":  renderStatus,
-	"time":    renderTime,
-	"host":    renderHost,
-	"venv":    renderVenv,
-	"node":    renderNode,
-	"go":      renderGo,
-	"battery": renderBattery,
-	"jobs":    renderJobs,
+	"user":           renderUser,
+	"cwd":            renderCwd,
+	"git":            renderGit,
+	"status":         renderStatus,
+	"time":           renderTime,
+	"host":           renderHost,
+	"venv":           renderVenv,
+	"node":           renderNode,
+	"go":             renderGo,
+	"battery":        renderBattery,
+	"jobs":           renderJobs,
+	"execution_time": renderExecutionTime,
+	"python":         renderPython,
+	"rust":           renderRust,
 }
 
 type fakeContext struct {
-	Username   string
-	Cwd        string
-	GitBranch  string
-	GitDirty   bool
-	ExitStatus int
-	Host       string
-	Venv       string
-	Node       string
-	Go         string
-	Battery    string
-	Jobs       int
+	Username      string
+	Cwd           string
+	GitBranch     string
+	GitDirty      bool
+	ExitStatus    int
+	Host          string
+	Venv          string
+	Node          string
+	Go            string
+	Battery       string
+	Jobs          int
+	ExecutionTime string
+	Python        string
+	Rust          string
 }
 
 type PreviewContext struct {
-	Username   string
-	Cwd        string
-	GitBranch  string
-	GitDirty   bool
-	ExitStatus int
-	Host       string
-	Venv       string
-	Node       string
-	Go         string
-	Battery    string
-	Jobs       int
+	Username      string
+	Cwd           string
+	GitBranch     string
+	GitDirty      bool
+	ExitStatus    int
+	Host          string
+	Venv          string
+	Node          string
+	Go            string
+	Battery       string
+	Jobs          int
+	ExecutionTime string
+	Python        string
+	Rust          string
 }
 
 func defaultContext() *fakeContext {
@@ -56,33 +65,39 @@ func defaultContext() *fakeContext {
 
 func DefaultPreviewContext() PreviewContext {
 	return PreviewContext{
-		Username:   "snake",
-		Cwd:        "~/dev/ozsh",
-		GitBranch:  "main",
-		GitDirty:   true,
-		ExitStatus: 0,
-		Host:       "omega",
-		Venv:       "venv",
-		Node:       "v22.0.0",
-		Go:         "go1.22.0",
-		Battery:    "87%",
-		Jobs:       1,
+		Username:      "snake",
+		Cwd:           "~/dev/ozsh",
+		GitBranch:     "main",
+		GitDirty:      true,
+		ExitStatus:    0,
+		Host:          "omega",
+		Venv:          "venv",
+		Node:          "v22.0.0",
+		Go:            "go1.22.0",
+		Battery:       "87%",
+		Jobs:          1,
+		ExecutionTime: "125ms",
+		Python:        "3.12.4",
+		Rust:          "1.79.0",
 	}
 }
 
 func contextFromPreview(ctx PreviewContext) *fakeContext {
 	return &fakeContext{
-		Username:   ctx.Username,
-		Cwd:        ctx.Cwd,
-		GitBranch:  ctx.GitBranch,
-		GitDirty:   ctx.GitDirty,
-		ExitStatus: ctx.ExitStatus,
-		Host:       ctx.Host,
-		Venv:       ctx.Venv,
-		Node:       ctx.Node,
-		Go:         ctx.Go,
-		Battery:    ctx.Battery,
-		Jobs:       ctx.Jobs,
+		Username:      ctx.Username,
+		Cwd:           ctx.Cwd,
+		GitBranch:     ctx.GitBranch,
+		GitDirty:      ctx.GitDirty,
+		ExitStatus:    ctx.ExitStatus,
+		Host:          ctx.Host,
+		Venv:          ctx.Venv,
+		Node:          ctx.Node,
+		Go:            ctx.Go,
+		Battery:       ctx.Battery,
+		Jobs:          ctx.Jobs,
+		ExecutionTime: ctx.ExecutionTime,
+		Python:        ctx.Python,
+		Rust:          ctx.Rust,
 	}
 }
 
@@ -174,4 +189,25 @@ func renderJobs(cfg config.SegmentConfig, ctx *fakeContext) string {
 		return ""
 	}
 	return fmt.Sprintf("%d jobs", ctx.Jobs)
+}
+
+func renderExecutionTime(cfg config.SegmentConfig, ctx *fakeContext) string {
+	if !cfg.Enabled {
+		return ""
+	}
+	return ctx.ExecutionTime
+}
+
+func renderPython(cfg config.SegmentConfig, ctx *fakeContext) string {
+	if !cfg.Enabled {
+		return ""
+	}
+	return ctx.Python
+}
+
+func renderRust(cfg config.SegmentConfig, ctx *fakeContext) string {
+	if !cfg.Enabled {
+		return ""
+	}
+	return ctx.Rust
 }

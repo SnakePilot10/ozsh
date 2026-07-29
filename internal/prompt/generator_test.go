@@ -27,10 +27,10 @@ func TestGenerate_Basic(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if !strings.Contains(output, "parts+=(\"%F{cyan}%B%n%b%f\")") {
+	if !strings.Contains(output, `ozsh_segment "$USERNAME"`) {
 		t.Errorf("Output missing user segment:\n%s", output)
 	}
-	if !strings.Contains(output, "parts+=(\"%F{blue}%~%f\")") {
+	if !strings.Contains(output, `ozsh_segment "$ozsh_cwd"`) {
 		t.Errorf("Output missing cwd segment:\n%s", output)
 	}
 }
@@ -51,7 +51,7 @@ func TestGenerate_DisabledSegment(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if !strings.Contains(output, "parts+=(\"%F{cyan}%B%n%b%f\")") {
+	if !strings.Contains(output, `ozsh_segment "$USERNAME"`) {
 		t.Errorf("Output missing user segment:\n%s", output)
 	}
 	if strings.Contains(output, "%F{white}%*") {
@@ -74,10 +74,10 @@ func TestGenerate_Status(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if !strings.Contains(output, "if [[ \"$last_status\" == \"0\" ]]; then") {
+	if !strings.Contains(output, `[[ "$last_status" == "0" ]]`) {
 		t.Errorf("Output missing success check:\n%s", output)
 	}
-	if !strings.Contains(output, "parts+=(\"%F{red}%B✓%b%f\")") {
+	if !strings.Contains(output, `ozsh_status_text="✓"`) {
 		t.Errorf("Output missing success icon:\n%s", output)
 	}
 }
@@ -123,7 +123,7 @@ func TestGenerate_Git(t *testing.T) {
 	if !strings.Contains(output, "ozsh_git_branch") {
 		t.Errorf("Output missing git function:\n%s", output)
 	}
-	if !strings.Contains(output, "parts+=(\"%F{green}${git_branch}%f\")") {
+	if !strings.Contains(output, `ozsh_segment "$git_branch"`) {
 		t.Errorf("Output missing git segment in parts:\n%s", output)
 	}
 }
@@ -233,8 +233,8 @@ func TestGenerate_RightPromptAndAdditionalSegments(t *testing.T) {
 		"ozsh_node_version()",
 		"ozsh_go_version()",
 		"ozsh_battery_level()",
-		"parts+=(\"%F{cyan}%m%f\")",
-		"right_parts+=(\"%F{blue}%*%f\")",
+		`ozsh_segment "$HOST"`,
+		`right_parts+=("$(ozsh_segment "$ozsh_time_text"`,
 		"RPROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${right_parts[@]}\")\"",
 	}
 	for _, want := range required {
@@ -414,8 +414,8 @@ func TestGenerateRendersIconAndBackground(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if !strings.Contains(output, `ozsh_icon_parts_user="$(ozsh_prompt_text '@')"`) ||
-		!strings.Contains(output, `%K{blue}%F{cyan}%B${ozsh_icon_parts_user} %n%b%f%k`) {
+	if !strings.Contains(output, `ozsh_segment "$USERNAME" '@'`) ||
+		!strings.Contains(output, `'%F{cyan}%K{blue}%B' '%b%k%f'`) {
 		t.Fatalf("Generate() missing icon/background styling:\n%s", output)
 	}
 	preview := Simulated(cfg)
@@ -728,7 +728,7 @@ func TestGenerate_DisableHeavySegmentsSkipsRuntimeCommands(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if !strings.Contains(output, `%n`) {
+	if !strings.Contains(output, `ozsh_segment "$USERNAME"`) {
 		t.Fatalf("Generate() output missing light user segment:\n%s", output)
 	}
 	for _, heavy := range []string{"ozsh_git_branch", "ozsh_node_version", "ozsh_go_version", "ozsh_battery_level"} {
@@ -763,7 +763,7 @@ func TestGenerate_HexColorFallbackHelper(t *testing.T) {
 	required := []string{
 		"ozsh_color()",
 		`COLORTERM`,
-		`$(ozsh_color "#ff003c" "red")%B%n%b%f`,
+		`$(ozsh_color "#ff003c" "red")%B`,
 	}
 	for _, want := range required {
 		if !strings.Contains(output, want) {

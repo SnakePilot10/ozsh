@@ -150,7 +150,7 @@ func TestAddAndSaveRollsBackCloneOnSaveFailure(t *testing.T) {
 		t.Fatalf("MkdirAll(fake git dir) error = %v", err)
 	}
 	fakeGit := filepath.Join(gitDir, "git")
-	if err := os.WriteFile(fakeGit, []byte("#!/bin/sh\nmkdir -p \"$5\"\nprintf '# plugin\\n' > \"$5/plugin.zsh\"\n"), 0o700); err != nil {
+	if err := os.WriteFile(fakeGit, []byte("#!/bin/sh\nif [ \"$1\" = clone ]; then mkdir -p \"$5\"; printf '# plugin\\n' > \"$5/plugin.zsh\"; else printf '0123456789abcdef0123456789abcdef01234567\\n'; fi\n"), 0o700); err != nil {
 		t.Fatalf("WriteFile(fake git) error = %v", err)
 	}
 	t.Setenv("PATH", gitDir+string(os.PathListSeparator)+os.Getenv("PATH"))

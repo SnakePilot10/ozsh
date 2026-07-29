@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-- Added config schema versioning with legacy migration backups.
+- Added transient prompts, OSC 7/133 integration, typed segment conditions, safe
+  in-process caching, richer segment styles, and Python, Rust, and execution-time
+  segments.
+- Added plugin provenance, inspection, fast-forward updates, and automatic trust
+  revocation when plugin revisions change.
+- Added portable theme metadata plus TOML import, export, and validation commands.
+- Added config schema v2 with migration dry-runs and timestamped v1 backups.
 - Added `ozsh doctor --report` for sanitized local diagnostics.
 - Added release checksum signing with keyless cosign.
 - Expanded apply/reset regression coverage for common `.zshrc` profiles.

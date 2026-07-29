@@ -175,6 +175,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.msg = "heavy segments enabled"
 				}
 			}
+		case "x":
+			if m.tab == tabBuilder {
+				m.cfg.Prompt.TransientPrompt = !m.cfg.Prompt.TransientPrompt
+				m.msg = fmt.Sprintf("transient prompt: %t", m.cfg.Prompt.TransientPrompt)
+			}
+		case "g":
+			if m.tab == tabBuilder {
+				m.cfg.Prompt.OSC7 = !m.cfg.Prompt.OSC7
+				m.msg = fmt.Sprintf("OSC 7: %t", m.cfg.Prompt.OSC7)
+			}
+		case "i":
+			if m.tab == tabBuilder {
+				m.cfg.Prompt.OSC133 = !m.cfg.Prompt.OSC133
+				m.msg = fmt.Sprintf("OSC 133: %t", m.cfg.Prompt.OSC133)
+			}
 		case "s":
 			if err := config.Save(m.cfg); err != nil {
 				m.msg = "save error: " + err.Error()
@@ -215,6 +230,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "u":
 			if m.tab == tabPlugins {
 				m.untrustPluginAtCursor()
+			}
+		case "r":
+			if m.tab == tabPlugins {
+				m.updatePluginAtCursor()
 			}
 		case "p":
 			if m.tab == tabPlugins && m.pluginURL.Value() == "" && m.pluginLoad.Value() == "" {
@@ -361,7 +380,8 @@ func (m Model) dashboard() string {
 
 func (m Model) builder() string {
 	var b strings.Builder
-	b.WriteString("segments\n\n")
+	fmt.Fprintf(&b, "segments\n\ntransient=%t  osc7=%t  osc133=%t  heavy=%t\n\n",
+		m.cfg.Prompt.TransientPrompt, m.cfg.Prompt.OSC7, m.cfg.Prompt.OSC133, !m.cfg.Prompt.DisableHeavySegments)
 	if len(m.cfg.Prompt.Order) == 0 {
 		b.WriteString("no segments configured\n")
 	} else {
@@ -381,7 +401,7 @@ func (m Model) builder() string {
 	b.WriteString("\n")
 	b.WriteString(prompt.Simulated(m.previewConfig()))
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("space/enter toggle | J/K reorder | h heavy segments | s save"))
+	b.WriteString(mutedStyle.Render("space toggle | J/K reorder | h heavy | x transient | g OSC7 | i OSC133 | s save"))
 	return b.String()
 }
 
@@ -467,7 +487,7 @@ func (m Model) themes() string {
 		if i == m.cursor {
 			prefix = "> "
 		}
-		fmt.Fprintf(&b, "%s%s  accent=%s success=%s error=%s\n", prefix, name, preset.Accent, preset.Success, preset.Error)
+		fmt.Fprintf(&b, "%s%s  tier=%s accent=%s success=%s error=%s\n", prefix, name, preset.Tier, preset.Accent, preset.Success, preset.Error)
 	}
 	b.WriteString("\n")
 	b.WriteString(prompt.Simulated(m.previewThemeConfig(names[m.cursor])))
@@ -495,14 +515,18 @@ func (m Model) plugins() string {
 		if item.Trusted {
 			trust = "trusted"
 		}
-		fmt.Fprintf(&b, "%s%s  %s  %s\n", prefix, item.Name, state, trust)
+		revision := item.Revision
+		if len(revision) > 8 {
+			revision = revision[:8]
+		}
+		fmt.Fprintf(&b, "%s%s  %s  %s  %s\n", prefix, item.Name, state, trust, revision)
 	}
 	b.WriteString("\nadd plugin\n")
 	b.WriteString(m.pluginURL.View())
 	b.WriteByte('\n')
 	b.WriteString(m.pluginLoad.View())
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("tab switches form field | left/right changes tabs | enter adds when URL is present, otherwise toggles selected | t trust | u untrust"))
+	b.WriteString(mutedStyle.Render("tab switches form field | enter add/toggle | t trust | u untrust | r update"))
 	return b.String()
 }
 
@@ -597,7 +621,7 @@ func (m Model) pluginInputShouldHandle(msg tea.KeyMsg) bool {
 	// begins a URL or load path every rune belongs to the focused input.
 	if m.pluginURL.Value() == "" && m.pluginLoad.Value() == "" {
 		switch msg.String() {
-		case "p", "t", "u":
+		case "p", "t", "u", "r":
 			return false
 		}
 	}
@@ -799,6 +823,27 @@ func (m *Model) untrustPluginAtCursor() {
 	m.msg = "plugin untrusted and saved: " + name
 }
 
+func (m *Model) updatePluginAtCursor() {
+	if m.cursor < 0 || m.cursor >= len(m.cfg.Plugins.Items) {
+		return
+	}
+	name := m.cfg.Plugins.Items[m.cursor].Name
+	changed, updateErr := plugins.Update(m.cfg, name)
+	if err := config.Save(m.cfg); err != nil {
+		m.msg = "plugin save error: " + err.Error()
+		return
+	}
+	if updateErr != nil {
+		m.msg = "plugin update error: " + updateErr.Error()
+		return
+	}
+	if changed {
+		m.msg = "plugin updated; trust revoked: " + name
+	} else {
+		m.msg = "plugin already current: " + name
+	}
+}
+
 func (m *Model) addPluginFromInputs() {
 	url := sanitizeInput(m.pluginURL.Value())
 	load := sanitizeInput(m.pluginLoad.Value())
@@ -882,11 +927,13 @@ func cloneConfig(cfg *config.Config) *config.Config {
 	clone := *cfg
 	clone.Prompt.Order = append([]string(nil), cfg.Prompt.Order...)
 	clone.Prompt.RightOrder = append([]string(nil), cfg.Prompt.RightOrder...)
+	clone.Prompt.TransientOrder = append([]string(nil), cfg.Prompt.TransientOrder...)
 	clone.Prompt.Segments = make(map[string]config.SegmentConfig, len(cfg.Prompt.Segments))
 	for key, value := range cfg.Prompt.Segments {
 		clone.Prompt.Segments[key] = value
 	}
 	clone.Plugins.Items = append([]config.PluginItem(nil), cfg.Plugins.Items...)
+	clone.Theme.Requires = append([]string(nil), cfg.Theme.Requires...)
 	return &clone
 }
 

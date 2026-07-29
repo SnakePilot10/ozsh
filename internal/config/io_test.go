@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -67,7 +68,7 @@ fg = "cyan"
 	if err != nil {
 		t.Fatalf("ReadFile(migrated config) error = %v", err)
 	}
-	if !strings.Contains(string(data), "version = 1") {
+	if !strings.Contains(string(data), fmt.Sprintf("version = %d", CurrentConfigVersion)) {
 		t.Fatalf("migrated config missing version:\n%s", data)
 	}
 	backups, err := filepath.Glob(filepath.Join(dir, "config-*.bak"))

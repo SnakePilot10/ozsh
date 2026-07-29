@@ -40,11 +40,11 @@ func Load() (*Config, error) {
 		}
 	}
 
-	cfg, legacy, err := decodeFile(p)
+	cfg, migrate, err := decodeFile(p)
 	if err != nil {
 		return nil, err
 	}
-	if legacy {
+	if migrate {
 		if err := backupConfig(p); err != nil {
 			return nil, fmt.Errorf("failed to back up legacy config: %w", err)
 		}
@@ -78,15 +78,15 @@ func decodeFile(path string) (*Config, bool, error) {
 	if undecoded := metadata.Undecoded(); len(undecoded) > 0 {
 		return nil, false, fmt.Errorf("unknown config key %q", undecoded[0].String())
 	}
-	legacy := cfg.Version == 0
+	migrate := cfg.Version < CurrentConfigVersion
 	if err := Validate(&cfg); err != nil {
 		return nil, false, fmt.Errorf("invalid config: %w", err)
 	}
-	return &cfg, legacy, nil
+	return &cfg, migrate, nil
 }
 
 func Save(cfg *Config) error {
-	if cfg != nil && cfg.Version == 0 {
+	if cfg != nil && cfg.Version < CurrentConfigVersion {
 		cfg.Version = CurrentConfigVersion
 	}
 	if err := Validate(cfg); err != nil {

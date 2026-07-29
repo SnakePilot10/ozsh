@@ -1,13 +1,17 @@
-version = 1
+version = 2
 
 [prompt]
 style = "simple"
 newline = true
 right_prompt = false
+transient_prompt = false
+osc7 = false
+osc133 = false
 disable_heavy_segments = false
 separator = "  "
 order = ["user", "cwd", "git", "status"]
 right_order = []
+transient_order = ["status", "cwd"]
 
 [prompt.segments.user]
 enabled = true
@@ -87,12 +91,42 @@ fg = "magenta"
 bg = ""
 bold = false
 
+[prompt.segments.execution_time]
+enabled = false
+icon = ""
+fg = "yellow"
+bg = ""
+bold = false
+
+[prompt.segments.python]
+enabled = false
+icon = ""
+fg = "yellow"
+bg = ""
+bold = false
+when = ""
+when_env = ""
+cache_ttl_seconds = 30
+
+[prompt.segments.rust]
+enabled = false
+icon = ""
+fg = "red"
+bg = ""
+bold = false
+when = ""
+when_env = ""
+cache_ttl_seconds = 30
+
 [plugins]
 engine = "manual"
 items = []
 
 [theme]
 name = "cyber-cyan"
+description = "High-contrast cyan theme"
+tier = "unicode"
+requires = ["unicode"]
 accent = "#00f5ff"
 background = "#09090d"
 muted = "#6b6b80"

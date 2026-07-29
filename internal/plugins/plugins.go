@@ -92,13 +92,21 @@ func Add(cfg *config.Config, rawURL, load string) (string, error) {
 		}
 		return "", fmt.Errorf("failed to clone plugin: %s", message)
 	}
+	revision, err := gitRevision(dst)
+	if err != nil {
+		_ = os.RemoveAll(dst)
+		return "", fmt.Errorf("failed to read cloned plugin revision: %w", err)
+	}
 
 	cfg.Plugins.Items = append(cfg.Plugins.Items, config.PluginItem{
-		Name:    name,
-		Enabled: true,
-		Trusted: false,
-		Source:  dst,
-		Load:    load,
+		Name:        name,
+		Enabled:     true,
+		Trusted:     false,
+		Source:      dst,
+		Load:        load,
+		Repository:  rawURL,
+		Revision:    revision,
+		InstalledAt: time.Now().UTC().Format(time.RFC3339),
 	})
 	return name, nil
 }
@@ -124,6 +132,73 @@ func AddAndSave(cfg *config.Config, rawURL, load string) (string, error) {
 		return "", fmt.Errorf("plugin cloned, but config could not be saved: %w", err)
 	}
 	return name, nil
+}
+
+func Inspect(cfg *config.Config, name string) (config.PluginItem, error) {
+	if err := validateName(name); err != nil {
+		return config.PluginItem{}, err
+	}
+	for _, item := range cfg.Plugins.Items {
+		if item.Name != name {
+			continue
+		}
+		if err := validatePluginSource(item); err != nil {
+			return config.PluginItem{}, err
+		}
+		if revision, err := gitRevision(item.Source); err == nil {
+			item.Revision = revision
+		}
+		return item, nil
+	}
+	return config.PluginItem{}, fmt.Errorf("plugin %q not found", name)
+}
+
+func Update(cfg *config.Config, name string) (bool, error) {
+	if err := validateName(name); err != nil {
+		return false, err
+	}
+	for i := range cfg.Plugins.Items {
+		item := cfg.Plugins.Items[i]
+		if item.Name != name {
+			continue
+		}
+		if err := validatePluginSource(item); err != nil {
+			return false, err
+		}
+		gitDir := filepath.Join(item.Source, ".git")
+		info, err := os.Lstat(gitDir)
+		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return false, fmt.Errorf("plugin %q is not a real git checkout", name)
+		}
+		oldRevision, err := gitRevision(item.Source)
+		if err != nil {
+			return false, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), cloneTimeout)
+		out, pullErr := exec.CommandContext(ctx, "git", "-C", item.Source, "pull", "--ff-only").CombinedOutput()
+		ctxErr := ctx.Err()
+		cancel()
+		if pullErr != nil {
+			if ctxErr == context.DeadlineExceeded {
+				return false, fmt.Errorf("plugin update timed out after %s", cloneTimeout)
+			}
+			return false, fmt.Errorf("plugin update failed: %s", strings.TrimSpace(string(out)))
+		}
+		newRevision, err := gitRevision(item.Source)
+		if err != nil {
+			return false, err
+		}
+		changed := oldRevision != newRevision
+		cfg.Plugins.Items[i].Revision = newRevision
+		if changed {
+			cfg.Plugins.Items[i].Trusted = false
+		}
+		if err := validateTrustTarget(cfg.Plugins.Items[i]); err != nil {
+			return changed, fmt.Errorf("updated plugin has an unsafe load target: %w", err)
+		}
+		return changed, nil
+	}
+	return false, fmt.Errorf("plugin %q not found", name)
 }
 
 func Remove(cfg *config.Config, name string) error {
@@ -314,4 +389,17 @@ func validateTrustTarget(item config.PluginItem) error {
 		return fmt.Errorf("load file must be readable: %w", err)
 	}
 	return file.Close()
+}
+
+func gitRevision(dir string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("git revision check timed out")
+		}
+		return "", fmt.Errorf("cannot read git revision: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }

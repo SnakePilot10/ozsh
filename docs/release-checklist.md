@@ -138,7 +138,7 @@ sha256sum --check checksums.txt --ignore-missing
 
 ## v1.0 Exit Criteria
 
-- `config.toml` includes `version = 1` and legacy configs migrate with backup.
+- `config.toml` includes `version = 2` and legacy configs migrate with backup.
 - `ozsh apply` and `ozsh reset` are idempotent against common `.zshrc` profiles.
 - `ozsh doctor --report` produces a sanitized support bundle without copying `.zshrc` content.
 - GitHub Releases publish static archives, `checksums.txt`, and cosign signature,

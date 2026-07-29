@@ -9,8 +9,12 @@ func Default() *Config {
 			RightPrompt:          false,
 			DisableHeavySegments: false,
 			Separator:            "  ",
-			Order:                []string{"user", "cwd", "git", "status"},
-			RightOrder:           []string{},
+			Order: []string{
+				"user", "cwd", "git", "status", "execution_time", "venv", "python",
+				"node", "go", "rust", "battery", "jobs", "host", "time",
+			},
+			RightOrder:     []string{},
+			TransientOrder: []string{"status", "cwd"},
 			Segments: map[string]SegmentConfig{
 				"user": {
 					Enabled: true,
@@ -90,6 +94,20 @@ func Default() *Config {
 					BG:      "",
 					Bold:    false,
 				},
+				"execution_time": {
+					Enabled: false,
+					FG:      "yellow",
+				},
+				"python": {
+					Enabled:  false,
+					FG:       "yellow",
+					CacheTTL: 30,
+				},
+				"rust": {
+					Enabled:  false,
+					FG:       "red",
+					CacheTTL: 30,
+				},
 			},
 		},
 		Plugins: PluginConfig{
@@ -97,13 +115,16 @@ func Default() *Config {
 			Items:  []PluginItem{},
 		},
 		Theme: ThemeConfig{
-			Name:       "cyber-cyan",
-			Accent:     "#00f5ff",
-			Background: "#09090d",
-			Muted:      "#6b6b80",
-			Success:    "#00ff9f",
-			Warning:    "#ffe600",
-			Error:      "#ff003c",
+			Name:        "cyber-cyan",
+			Description: "High-contrast cyan theme",
+			Tier:        "unicode",
+			Requires:    []string{"unicode"},
+			Accent:      "#00f5ff",
+			Background:  "#09090d",
+			Muted:       "#6b6b80",
+			Success:     "#00ff9f",
+			Warning:     "#ffe600",
+			Error:       "#ff003c",
 		},
 	}
 }

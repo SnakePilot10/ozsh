@@ -2,10 +2,12 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var validNamedColors = map[string]struct{}{
@@ -24,6 +26,8 @@ var validNamedColors = map[string]struct{}{
 var (
 	hexColorPattern    = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 	pluginNamePattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
+	promptStylePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	envNamePattern     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	controlCharPattern = regexp.MustCompile(`[\x00-\x1f\x7f]`)
 )
 
@@ -31,10 +35,13 @@ func Validate(cfg *Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
-	if cfg.Version == 0 {
+	if cfg.Version < 0 {
+		return fmt.Errorf("unsupported config version %d; supported version is %d", cfg.Version, CurrentConfigVersion)
+	}
+	if cfg.Version < CurrentConfigVersion {
 		cfg.Version = CurrentConfigVersion
 	}
-	if cfg.Version < 0 || cfg.Version > CurrentConfigVersion {
+	if cfg.Version > CurrentConfigVersion {
 		return fmt.Errorf("unsupported config version %d; supported version is %d", cfg.Version, CurrentConfigVersion)
 	}
 	FillDefaults(cfg)
@@ -58,6 +65,16 @@ func Validate(cfg *Config) error {
 		}
 		seen[name] = struct{}{}
 	}
+	transientSeen := map[string]struct{}{}
+	for _, name := range cfg.Prompt.TransientOrder {
+		if err := validateSegmentName(cfg, "transient prompt order", name); err != nil {
+			return err
+		}
+		if _, ok := transientSeen[name]; ok {
+			return fmt.Errorf("transient prompt order contains duplicate segment %q", name)
+		}
+		transientSeen[name] = struct{}{}
+	}
 
 	for name, segment := range cfg.Prompt.Segments {
 		if controlCharPattern.MatchString(segment.Icon) {
@@ -68,6 +85,23 @@ func Validate(cfg *Config) error {
 		}
 		if err := validateColor(segment.BG); err != nil {
 			return fmt.Errorf("segment %q bg: %w", name, err)
+		}
+		if segment.PaddingLeft < 0 || segment.PaddingLeft > 20 || segment.PaddingRight < 0 || segment.PaddingRight > 20 {
+			return fmt.Errorf("segment %q padding must be between 0 and 20", name)
+		}
+		if segment.CacheTTL < 0 || segment.CacheTTL > 3600 {
+			return fmt.Errorf("segment %q cache TTL must be between 0 and 3600 seconds", name)
+		}
+		if err := validateCondition(segment.When); err != nil {
+			return fmt.Errorf("segment %q when: %w", name, err)
+		}
+		if segment.WhenEnv != "" && !envNamePattern.MatchString(segment.WhenEnv) {
+			return fmt.Errorf("segment %q when_env must be a valid environment variable name", name)
+		}
+		for field, value := range map[string]string{"icon": segment.Icon, "leading_symbol": segment.LeadingSymbol, "trailing_symbol": segment.TrailingSymbol} {
+			if controlCharPattern.MatchString(value) {
+				return fmt.Errorf("segment %q %s cannot contain control characters", name, field)
+			}
 		}
 	}
 	if cfg.Prompt.Separator == "" {
@@ -99,6 +133,9 @@ func FillDefaults(cfg *Config) {
 	if cfg.Prompt.Segments == nil {
 		cfg.Prompt.Segments = map[string]SegmentConfig{}
 	}
+	if cfg.Prompt.TransientOrder == nil {
+		cfg.Prompt.TransientOrder = append([]string(nil), defaults.Prompt.TransientOrder...)
+	}
 	for name, segment := range defaults.Prompt.Segments {
 		if _, ok := cfg.Prompt.Segments[name]; !ok {
 			cfg.Prompt.Segments[name] = segment
@@ -109,7 +146,18 @@ func FillDefaults(cfg *Config) {
 	}
 	if cfg.Theme.Name == "" {
 		cfg.Theme = defaults.Theme
+	} else {
+		if cfg.Theme.Tier == "" {
+			cfg.Theme.Tier = "ascii"
+		}
+		if cfg.Theme.Requires == nil {
+			cfg.Theme.Requires = []string{}
+		}
 	}
+}
+
+func ValidateTheme(theme ThemeConfig) error {
+	return validateTheme(theme)
 }
 
 func validateSegmentName(cfg *Config, field, name string) error {
@@ -130,6 +178,23 @@ func validateColor(color string) error {
 }
 
 func validateTheme(theme ThemeConfig) error {
+	validTiers := map[string]bool{"ascii": true, "unicode": true, "nerd-font": true, "powerline": true}
+	if !promptStylePattern.MatchString(theme.Name) {
+		return fmt.Errorf("theme name must contain only letters, numbers, underscores, or hyphens")
+	}
+	if !validTiers[theme.Tier] {
+		return fmt.Errorf("theme tier must be ascii, unicode, nerd-font, or powerline")
+	}
+	seenRequirements := map[string]bool{}
+	for _, requirement := range theme.Requires {
+		if !validTiers[requirement] || requirement == "ascii" {
+			return fmt.Errorf("theme requirement %q is not supported", requirement)
+		}
+		if seenRequirements[requirement] {
+			return fmt.Errorf("theme requirement %q is duplicated", requirement)
+		}
+		seenRequirements[requirement] = true
+	}
 	colors := map[string]string{
 		"accent": theme.Accent, "background": theme.Background, "muted": theme.Muted,
 		"success": theme.Success, "warning": theme.Warning, "error": theme.Error,
@@ -140,6 +205,15 @@ func validateTheme(theme ThemeConfig) error {
 		}
 	}
 	return nil
+}
+
+func validateCondition(condition string) error {
+	switch condition {
+	case "", "always", "git_repository", "virtualenv", "command_success", "command_failure":
+		return nil
+	default:
+		return fmt.Errorf("unsupported condition %q", condition)
+	}
 }
 
 func validatePlugins(plugins PluginConfig) error {
@@ -160,6 +234,20 @@ func validatePlugins(plugins PluginConfig) error {
 		}
 		if err := validatePluginLoad(item.Load); err != nil {
 			return fmt.Errorf("plugin %q load: %w", item.Name, err)
+		}
+		if item.Repository != "" {
+			repository, err := url.Parse(item.Repository)
+			if err != nil || repository.Scheme != "https" || repository.Host == "" || repository.User != nil {
+				return fmt.Errorf("plugin %q repository must be an https URL without credentials", item.Name)
+			}
+		}
+		if item.Revision != "" && !regexp.MustCompile(`^[0-9a-fA-F]{40}$`).MatchString(item.Revision) {
+			return fmt.Errorf("plugin %q revision must be a full git commit hash", item.Name)
+		}
+		if item.InstalledAt != "" {
+			if _, err := time.Parse(time.RFC3339, item.InstalledAt); err != nil {
+				return fmt.Errorf("plugin %q installed_at must use RFC3339", item.Name)
+			}
 		}
 	}
 	return nil
