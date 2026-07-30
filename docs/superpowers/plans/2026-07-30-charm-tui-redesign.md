@@ -445,13 +445,21 @@ type Model struct {
 	screens map[Route]Screen
 	layout  Layout
 	help    help.Model
+	spinner spinner.Model
 	busy    bool
 	status  StatusMsg
 	modal   modalKind
 }
 
 func NewModel(cfg *config.Config) *Model {
-	m := &Model{session: NewSession(cfg), route: RouteHome, help: help.New()}
+	spin := spinner.New()
+	spin.Spinner = spinner.Dot
+	m := &Model{
+		session: NewSession(cfg),
+		route: RouteHome,
+		help: help.New(),
+		spinner: spin,
+	}
 	m.screens = newScreens(m.session.Draft())
 	return m
 }
@@ -465,9 +473,29 @@ func saveCmd(cfg *config.Config) tea.Cmd {
 }
 ```
 
-The root handles window sizes, typed domain messages, busy state, save/discard/cancel and quit modals, then delegates ordinary input to the active screen. `View` returns a resize notice when `layout.TooSmall`; otherwise it renders breadcrumb, active content, semantic status, and `help.View(activeScreen)`.
+The root handles window sizes, typed domain messages, busy state, Save/Discard/Cancel and quit modals, then delegates ordinary input to the active screen. A save request sets `busy`, starts `spinner.Tick`, ignores duplicate operation keys, and clears the spinner on `SaveResultMsg`. `View` returns a resize notice when `layout.TooSmall`; otherwise it renders breadcrumb, active content, the save spinner or semantic status, and `help.View(activeScreen)`.
 
-- [ ] **Step 5: Write the failing Home selection and help consistency test**
+- [ ] **Step 5: Write the failing save-spinner test**
+
+```go
+func TestRootSaveShowsSpinnerUntilResult(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	model := NewModel(config.Default())
+	updated, cmd := model.Update(SaveRequestMsg{})
+	model = updated.(*Model)
+	if !model.busy || cmd == nil || !strings.Contains(model.View(), "Saving") {
+		t.Fatalf("busy=%t view=%q", model.busy, model.View())
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(*Model)
+	if model.busy {
+		t.Fatal("save result did not clear busy state")
+	}
+}
+```
+
+- [ ] **Step 6: Write the failing Home selection and help consistency test**
 
 ```go
 func TestHomeEnterNavigatesToSelectedTask(t *testing.T) {
@@ -490,7 +518,7 @@ func TestHomeHelpUsesExecutableBindings(t *testing.T) {
 }
 ```
 
-- [ ] **Step 6: Implement Home with `bubbles/list` and `bubbles/key/help`**
+- [ ] **Step 7: Implement Home with `bubbles/list` and `bubbles/key/help`**
 
 ```go
 type homeItem struct {
@@ -505,13 +533,13 @@ func (i homeItem) FilterValue() string { return i.title + " " + i.desc }
 
 Construct seven items in the approved order. Enter emits `NavigateMsg`; `q` emits `QuitRequestMsg`; list filtering, pagination, and movement remain delegated to `list.Model`. Define each key once with `key.NewBinding` and return those same bindings from help methods.
 
-- [ ] **Step 7: Run focused and full TUI tests**
+- [ ] **Step 8: Run focused and full TUI tests**
 
 Run: `go test ./internal/tui -run 'Test(NewLayout|Root|Home)' -count=1`
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit Task 3**
+- [ ] **Step 9: Commit Task 3**
 
 ```bash
 git add internal/tui
