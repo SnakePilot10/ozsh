@@ -209,13 +209,5 @@ func (m Model) selectedTheme() (themecatalog.Preset, bool) {
 	if m.cursor < 0 || m.cursor >= len(presets) {
 		return themecatalog.Preset{}, false
 	}
-	selected := presets[m.cursor]
-	if selected.ID != "circuit" {
-		return selected, true
-	}
-	variants := themecatalog.Variants("circuit")
-	if len(variants) == 0 {
-		return selected, true
-	}
-	return themecatalog.Get("circuit", variants[wrapIndex(m.themeVariant, len(variants))])
+	return presets[m.cursor], true
 }
