@@ -174,7 +174,7 @@ func removeString(values []string, value string) []string {
 }
 
 func sortedThemeNames() []string {
-	presets := themecatalog.List()
+	presets := themecatalog.Families()
 	names := make([]string, len(presets))
 	for i, preset := range presets {
 		names[i] = preset.ID
