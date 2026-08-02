@@ -39,6 +39,14 @@ func (m Model) layout() layoutSpec {
 	if workspaceContentHeight < 1 {
 		workspaceContentHeight = 1
 	}
+	contentWidth := terminalWidth - horizontalBorderSize(panelStyle)
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+	contentHeight := terminalHeight - verticalBorderSize(panelStyle)
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
 
 	headerHeight := lipgloss.Height(renderHeader(m.tab, workspaceWidth))
 	footerHeight := 1
@@ -54,8 +62,8 @@ func (m Model) layout() layoutSpec {
 	return layoutSpec{
 		terminalWidth:          terminalWidth,
 		terminalHeight:         terminalHeight,
-		contentWidth:           terminalWidth - horizontalBorderSize(panelStyle),
-		contentHeight:          terminalHeight - verticalBorderSize(panelStyle),
+		contentWidth:           contentWidth,
+		contentHeight:          contentHeight,
 		workspaceWidth:         workspaceWidth,
 		workspaceHeight:        workspaceHeight,
 		workspaceContentHeight: workspaceContentHeight,
