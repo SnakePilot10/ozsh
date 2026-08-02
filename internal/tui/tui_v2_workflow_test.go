@@ -44,3 +44,15 @@ func TestReviewApplyCapturesIndependentSnapshot(t *testing.T) {
 		t.Fatal("review snapshot aliases the editable configuration")
 	}
 }
+
+func TestAdvancedPluginFormStaysCollapsedUntilRequested(t *testing.T) {
+	model := NewModel(config.Default())
+	model.setTab(tabPlugins)
+	if strings.Contains(model.plugins(), "Add from repository") {
+		t.Fatal("advanced plugin form is visible before opt-in")
+	}
+	model.pluginAdvanced = true
+	if !strings.Contains(model.plugins(), "Add from repository") {
+		t.Fatal("advanced plugin form is missing after opt-in")
+	}
+}
