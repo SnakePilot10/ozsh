@@ -13,6 +13,9 @@ func Simulated(cfg *config.Config) string {
 }
 
 func SimulatedWithContext(cfg *config.Config, previewCtx PreviewContext) string {
+	if cfg == nil {
+		cfg = config.Default()
+	}
 	clone := cloneForPreview(cfg)
 	config.FillDefaults(&clone)
 
@@ -35,10 +38,10 @@ func SimulatedWithContext(cfg *config.Config, previewCtx PreviewContext) string 
 	if clone.Prompt.RightPrompt || len(rightParts) > 0 {
 		line = fmt.Sprintf("%s    %s", line, strings.Join(rightParts, clone.Prompt.Separator))
 	}
-	if clone.Prompt.Newline {
-		return fmt.Sprintf("%s\n❯", line)
+	if clone.Prompt.Layout == config.PromptLayoutTwoLine {
+		return fmt.Sprintf("%s\n%s", line, clone.Prompt.Symbol)
 	}
-	return fmt.Sprintf("%s ❯", line)
+	return fmt.Sprintf("%s %s", line, clone.Prompt.Symbol)
 }
 
 func cloneForPreview(cfg *config.Config) config.Config {
@@ -49,6 +52,7 @@ func cloneForPreview(cfg *config.Config) config.Config {
 	for name, segment := range cfg.Prompt.Segments {
 		clone.Prompt.Segments[name] = segment
 	}
+	clone.Plugins.Selected = append([]string(nil), cfg.Plugins.Selected...)
 	clone.Plugins.Items = append([]config.PluginItem(nil), cfg.Plugins.Items...)
 	return clone
 }
@@ -63,11 +67,14 @@ func renderPreviewSegment(cfg *config.Config, ctx *fakeContext, name string) str
 		return ""
 	}
 	rendered := fn(segCfg, ctx)
+	if name == "user" && cfg.Prompt.DisplayName != "" {
+		rendered = cfg.Prompt.DisplayName
+	}
 	if rendered == "" {
 		return ""
 	}
-	if segCfg.Icon != "" {
-		rendered = segCfg.Icon + " " + rendered
+	if icon := segmentIcon(cfg.Prompt, segCfg); icon != "" {
+		rendered = icon + " " + rendered
 	}
 	return ansiWrap(rendered, segCfg)
 }
