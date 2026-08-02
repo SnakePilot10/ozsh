@@ -17,7 +17,7 @@ env:
 jobs:
   # BEGIN TEMP THEME CLI MIGRATION
   integrate-theme-cli:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/tui-v2-fonts-themes' && github.actor != 'github-actions[bot]'
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/tui-v2-fonts-themes' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
