@@ -16,69 +16,21 @@ import (
 )
 
 func (m Model) View() string {
-	var b strings.Builder
-	contentWidth := m.contentWidth()
-	b.WriteString(renderHeader(m.tab, contentWidth))
-	b.WriteString("\n\n")
-
-	if m.busy && m.operation == "plugins" {
-		b.WriteString("Installing plugins…\n\nCloning and validating the selected repositories.")
-	} else if m.busy && m.operation == "font" {
-		b.WriteString("Installing Nerd Font…\n\nDownloading, verifying SHA-256, and activating the font.")
-	} else if m.busy && m.operation == "font-restore" {
-		b.WriteString("Restoring previous Termux font…")
-	} else if m.busy && m.operation == "backup" {
-		b.WriteString("Restoring backup…")
-	} else if m.fontOpen {
-		b.WriteString(m.fontDialog())
-	} else if m.backupOpen {
-		b.WriteString(m.backupDialog())
-	} else if m.confirmPlugins {
-		b.WriteString(m.pluginInstallConfirmation())
-	} else if m.confirmApply || m.busy {
-		b.WriteString(m.apply())
-	} else if m.doctorOpen {
-		b.WriteString(m.doctor())
-	} else {
-		switch m.tab {
-		case tabHome:
-			b.WriteString(m.home())
-		case tabPrompt:
-			b.WriteString(m.builder())
-		case tabThemes:
-			b.WriteString(m.themes())
-		case tabPlugins:
-			b.WriteString(m.plugins())
-		case tabPreview:
-			b.WriteString(m.preview())
-		}
-	}
-
+	spec := m.layout()
+	header := renderHeader(m.tab, spec.contentWidth)
+	body := m.workspaceContent(spec)
+	status := ""
 	if m.msg != "" {
 		failed := strings.Contains(strings.ToLower(m.msg), "error") || strings.Contains(strings.ToLower(m.msg), "failed")
-		b.WriteString("\n\n")
-		b.WriteString(renderStatus(m.msg, failed))
+		status = renderStatus(m.msg, failed)
 	}
-	b.WriteString("\n\n")
-	b.WriteString(renderHint("Ctrl+A apply  ·  ? help  ·  Ctrl+C quit"))
-
-	content := fitBlock(b.String(), contentWidth)
-	panel := panelStyle.Copy()
-	if m.width > 0 {
-		panel = panel.Width(contentWidth)
-	}
+	content := composeFullscreen(header, body, status, screenFooter(m.tab), spec)
+	panel := panelStyle.Copy().Width(spec.contentWidth).Height(spec.contentHeight)
 	return panel.Render(content)
 }
 
 func (m Model) contentWidth() int {
-	if m.width <= 0 {
-		return 76
-	}
-	width := m.width - panelStyle.GetHorizontalFrameSize()
-	if width < 1 {
-		return 1
-	}
-	return width
+	return m.layout().contentWidth
 }
 
 func fitBlock(value string, width int) string {
