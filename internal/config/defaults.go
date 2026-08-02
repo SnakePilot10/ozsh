@@ -43,7 +43,7 @@ func Default() *Config {
 		Theme: ThemeConfig{
 			ID:         "cyberpunk",
 			Variant:    "",
-			Name:       "Cyberpunk",
+			Name:       "cyber-cyan",
 			Accent:     "#00f5ff",
 			Background: "#09090d",
 			Muted:      "#6b6b80",
