@@ -11,22 +11,22 @@ import (
 
 var (
 	workspaceBoxStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(visualPalette.Border).
-		Padding(0, 1)
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(visualPalette.Border).
+				Padding(0, 1)
 
 	selectedRowStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Text).
-		Background(visualPalette.Surface).
-		Bold(true).
-		Padding(0, 1)
+				Foreground(visualPalette.Text).
+				Background(visualPalette.Surface).
+				Bold(true).
+				Padding(0, 1)
 
 	stateOnStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Success).
-		Bold(true)
+			Foreground(visualPalette.Success).
+			Bold(true)
 
 	stateOffStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Muted)
+			Foreground(visualPalette.Muted)
 )
 
 func (m Model) promptWorkspace(spec layoutSpec) string {
