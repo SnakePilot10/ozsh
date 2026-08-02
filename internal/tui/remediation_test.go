@@ -26,11 +26,11 @@ func TestTabAwareCursorClampsPerScreen(t *testing.T) {
 	}
 	model.setTab(tabPlugins)
 	if model.cursor != 0 {
-		t.Fatalf("plugin cursor = %d, want zero with empty list", model.cursor)
+		t.Fatalf("plugin cursor = %d, want reset to zero", model.cursor)
 	}
 	model.moveCursor(1)
-	if model.cursor != 0 {
-		t.Fatalf("plugin cursor moved in an empty list: %d", model.cursor)
+	if model.cursor != 1 {
+		t.Fatalf("plugin cursor = %d, want first curated move to 1", model.cursor)
 	}
 }
 
@@ -80,6 +80,8 @@ func TestPreviewAllowsNumericExitAndDisplaysValidationError(t *testing.T) {
 func TestPluginFormSeparatesURLAndLoadFocus(t *testing.T) {
 	model := NewModel(config.Default())
 	model.setTab(tabPlugins)
+	model.pluginAdvanced = true
+	model.focusPluginInput()
 
 	updated, _ := model.Update(keyRune('x'))
 	model = updated.(Model)
@@ -120,8 +122,9 @@ func TestWrapIndexAndPluginHelpView(t *testing.T) {
 	}
 	model := NewModel(config.Default())
 	model.setTab(tabPlugins)
+	model.pluginAdvanced = true
 	view := model.plugins()
-	if !strings.Contains(view, "add plugin") || !strings.Contains(view, "tab switches form field") {
-		t.Fatalf("plugin view missing form guidance:\n%s", view)
+	if !strings.Contains(view, "Add from repository") || !strings.Contains(view, "url:") || !strings.Contains(view, "load:") {
+		t.Fatalf("plugin view missing advanced form guidance:\n%s", view)
 	}
 }
