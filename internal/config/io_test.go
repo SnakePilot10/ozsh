@@ -67,7 +67,7 @@ fg = "cyan"
 	if err != nil {
 		t.Fatalf("ReadFile(migrated config) error = %v", err)
 	}
-	if !strings.Contains(string(data), "version = 1") {
+	if !strings.Contains(string(data), "version = 2") {
 		t.Fatalf("migrated config missing version:\n%s", data)
 	}
 	backups, err := filepath.Glob(filepath.Join(dir, "config-*.bak"))
@@ -142,6 +142,7 @@ func TestLoadReadsExistingConfig(t *testing.T) {
 	withTempHome(t)
 	cfg := Default()
 	cfg.Prompt.Newline = false
+	cfg.Prompt.Layout = PromptLayoutOneLine
 	cfg.Prompt.Segments["user"] = SegmentConfig{Enabled: true, FG: "#00f5ff", Bold: true}
 	if err := Save(cfg); err != nil {
 		t.Fatalf("Save() error = %v", err)

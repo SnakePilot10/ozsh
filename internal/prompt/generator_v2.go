@@ -166,11 +166,10 @@ ozsh_backtick='` + "`" + `'
 	fmt.Fprintf(&b, "  local ozsh_raw_separator=%s\n", zshSingleQuote(cfg.Prompt.Separator))
 	b.WriteString("  local ozsh_separator\n")
 	b.WriteString("  ozsh_separator=\"$(ozsh_prompt_text \"$ozsh_raw_separator\")\"\n")
-	fmt.Fprintf(&b, "  local ozsh_symbol=\"$(ozsh_prompt_text %s)\"\n", zshSingleQuote(cfg.Prompt.Symbol+" "))
 	if cfg.Prompt.Layout == config.PromptLayoutTwoLine {
-		b.WriteString("  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"$'\\n'\"${ozsh_symbol}\"\n")
+		fmt.Fprintf(&b, "  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"%s\n", zshANSIQuote("\n"+cfg.Prompt.Symbol+" "))
 	} else {
-		b.WriteString("  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\") ${ozsh_symbol}\"\n")
+		fmt.Fprintf(&b, "  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"%s\n", zshANSIQuote(" "+cfg.Prompt.Symbol+" "))
 	}
 	if cfg.Prompt.RightPrompt || len(cfg.Prompt.RightOrder) > 0 {
 		b.WriteString("  RPROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${right_parts[@]}\")\"\n")
@@ -358,6 +357,11 @@ func zshSingleQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func zshANSIQuote(value string) string {
+	replacer := strings.NewReplacer("\\", "\\\\", "'", "\\'", "\n", "\\n", "\r", "\\r", "\t", "\\t")
+	return "$'" + replacer.Replace(value) + "'"
 }
 
 func segmentEnabled(cfg *config.Config, name string) bool {

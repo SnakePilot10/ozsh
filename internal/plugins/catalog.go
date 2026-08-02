@@ -29,17 +29,17 @@ var curatedCatalog = []Definition{
 	{
 		ID: "zsh-autosuggestions", Name: "Autosuggestions",
 		Description: "Suggest commands from history while you type.",
-		URL: "https://github.com/zsh-users/zsh-autosuggestions.git", Load: "zsh-autosuggestions.zsh",
+		URL:         "https://github.com/zsh-users/zsh-autosuggestions.git", Load: "zsh-autosuggestions.zsh",
 	},
 	{
 		ID: "fzf-tab", Name: "fzf-tab",
 		Description: "Replace standard completion selection with an fzf menu.",
-		URL: "https://github.com/Aloxaf/fzf-tab.git", Load: "fzf-tab.plugin.zsh",
+		URL:         "https://github.com/Aloxaf/fzf-tab.git", Load: "fzf-tab.plugin.zsh",
 	},
 	{
 		ID: "zsh-syntax-highlighting", Name: "Syntax highlighting",
 		Description: "Highlight commands before execution and load last.",
-		URL: "https://github.com/zsh-users/zsh-syntax-highlighting.git", Load: "zsh-syntax-highlighting.zsh",
+		URL:         "https://github.com/zsh-users/zsh-syntax-highlighting.git", Load: "zsh-syntax-highlighting.zsh",
 	},
 }
 

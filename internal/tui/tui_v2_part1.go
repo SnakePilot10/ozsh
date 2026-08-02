@@ -33,6 +33,8 @@ const (
 	// removed from the UI. Apply and Doctor are actions, not destinations.
 	tabDashboard = tabHome
 	tabBuilder   = tabPrompt
+	tabApply     = tabPreview
+	tabDoctor    = tabHome
 )
 
 // Model keeps one selection cursor, but clamps and resets it per tab. This
