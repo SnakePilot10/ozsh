@@ -126,7 +126,23 @@ func validateRaw(raw rawPreset) error {
 	return nil
 }
 
+// List returns every selectable preset. Theme families with variants, such as
+// Circuit, appear once per variant so terminal users can choose them directly.
 func List() []Preset {
+	presets, err := loadCatalog()
+	if err != nil {
+		panic(err)
+	}
+	result := make([]Preset, 0, len(presets))
+	for _, preset := range presets {
+		result = append(result, clonePreset(preset))
+	}
+	return result
+}
+
+// Families returns one representative preset per theme ID. It is useful for
+// compact CLI listings where variants are displayed underneath the family.
+func Families() []Preset {
 	presets, err := loadCatalog()
 	if err != nil {
 		panic(err)
@@ -176,21 +192,7 @@ func Variants(id string) []string {
 func Apply(base *config.Config, preset Preset) *config.Config {
 	cfg := cloneConfig(base)
 	cfg.Theme = preset.Theme
-	cfg.Prompt.Layout = preset.Layout
-	cfg.Prompt.Newline = preset.Layout == config.PromptLayoutTwoLine
-	cfg.Prompt.Symbol = preset.Symbol
-	cfg.Prompt.Separator = preset.Separator
-	cfg.Prompt.Order = append([]string(nil), preset.Order...)
-	cfg.Prompt.RightOrder = append([]string(nil), preset.RightOrder...)
-	icons := map[string]string{"user": preset.UserIcon, "cwd": preset.CwdIcon, "git": preset.GitIcon, "status": preset.StatusIcon}
-	colors := map[string]string{"user": preset.Theme.Accent, "cwd": preset.Theme.Warning, "git": preset.Theme.Accent, "status": preset.Theme.Error}
-	for name, icon := range icons {
-		segment := cfg.Prompt.Segments[name]
-		segment.CompatibleIcon = icon
-		segment.Icon = icon
-		segment.FG = colors[name]
-		cfg.Prompt.Segments[name] = segment
-	}
+	applyPresentation(cfg, preset)
 	return cfg
 }
 
