@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/snakepilot10/ozsh/internal/config"
 	"github.com/snakepilot10/ozsh/internal/prompt"
+	"github.com/snakepilot10/ozsh/internal/shell"
 	themecatalog "github.com/snakepilot10/ozsh/internal/themes"
 	"strconv"
 	"strings"
@@ -138,7 +139,13 @@ func (m *Model) syncPreviewInputs() {
 }
 
 func (m Model) previewConfig() *config.Config {
-	return cloneConfig(m.cfg)
+	cfg := cloneConfig(m.cfg)
+	if shell.IsTermux() {
+		cfg.Prompt.DisableHeavySegments = true
+		cfg.Prompt.RightPrompt = false
+		cfg.Prompt.RightOrder = []string{}
+	}
+	return cfg
 }
 
 func previewInputs(ctx prompt.PreviewContext) []textinput.Model {
