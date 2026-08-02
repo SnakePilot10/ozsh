@@ -40,7 +40,7 @@ func (m Model) homeWorkspace(spec layoutSpec) string {
 	actions.WriteString("[a]  Review & Apply")
 
 	var body strings.Builder
-	body.WriteString(renderSectionHeader("Home", "System status and safe configuration actions"))
+	body.WriteString(renderSectionHeader("Home", "Welcome · System status and safe configuration actions"))
 	body.WriteString("\n\n")
 	if spec.wide {
 		gutter := 2
@@ -48,9 +48,9 @@ func (m Model) homeWorkspace(spec layoutSpec) string {
 		right := spec.contentWidth - gutter - left
 		body.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			workspaceBoxStyle.Copy().Width(innerBoxWidth(left)).Render(summary.String()),
+			totalWidthStyle(workspaceBoxStyle.Copy(), left).Render(summary.String()),
 			strings.Repeat(" ", gutter),
-			workspaceBoxStyle.Copy().Width(innerBoxWidth(right)).Render(actions.String()),
+			totalWidthStyle(workspaceBoxStyle.Copy(), right).Render(actions.String()),
 		))
 	} else {
 		body.WriteString(summary.String())
@@ -63,7 +63,10 @@ func (m Model) homeWorkspace(spec layoutSpec) string {
 func (m Model) themesWorkspace(spec layoutSpec) string {
 	presets := themecatalog.List()
 	var body strings.Builder
-	body.WriteString(renderSectionHeader("Themes", fmt.Sprintf("%d families · %d selectable presets", len(themecatalog.Families()), len(presets))))
+	body.WriteString(renderSectionHeader(
+		"Themes",
+		fmt.Sprintf("Theme gallery · %d families · %d selectable presets", len(themecatalog.Families()), len(presets)),
+	))
 	body.WriteString("\n\n")
 
 	listRows := 8
@@ -76,8 +79,12 @@ func (m Model) themesWorkspace(spec layoutSpec) string {
 		gutter := 2
 		left := (spec.contentWidth - gutter) * 42 / 100
 		right := spec.contentWidth - gutter - left
-		library = workspaceBoxStyle.Copy().Width(innerBoxWidth(left)).Render(m.themeLibraryPanel(presets, listRows))
-		details = workspaceBoxStyle.Copy().Width(innerBoxWidth(right)).Render(m.themeDetailPanel(right))
+		detailsWidth := right - workspaceBoxStyle.GetHorizontalFrameSize()
+		if detailsWidth < 12 {
+			detailsWidth = 12
+		}
+		library = totalWidthStyle(workspaceBoxStyle.Copy(), left).Render(m.themeLibraryPanel(presets, listRows))
+		details = totalWidthStyle(workspaceBoxStyle.Copy(), right).Render(m.themeDetailPanel(detailsWidth))
 		body.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, library, strings.Repeat(" ", gutter), details))
 	} else {
 		body.WriteString(library)
@@ -145,9 +152,8 @@ func (m Model) themeDetailPanel(width int) string {
 	if !ok {
 		return renderGroupLabel("Description") + "\n" + renderHint("Select a theme to inspect it")
 	}
-	previewWidth := width
-	if previewWidth < 20 {
-		previewWidth = 20
+	if width < 20 {
+		width = 20
 	}
 	var b strings.Builder
 	b.WriteString(renderGroupLabel("Description"))
@@ -162,10 +168,21 @@ func (m Model) themeDetailPanel(width int) string {
 	b.WriteString("\n\n")
 	b.WriteString(renderGroupLabel("Palette"))
 	b.WriteString("\n")
-	b.WriteString(themeSwatches(selected))
+	b.WriteString(themePaletteLines(selected))
 	b.WriteString("\n\n")
-	b.WriteString(renderPreviewBox("Live preview", prompt.Simulated(themecatalog.Apply(m.cfg, selected)), previewWidth))
+	b.WriteString(renderPreviewBox("Live preview", prompt.Simulated(themecatalog.Apply(m.cfg, selected)), width))
 	return b.String()
+}
+
+func themePaletteLines(preset themecatalog.Preset) string {
+	colors := []string{preset.Theme.Accent, preset.Theme.Success, preset.Theme.Warning, preset.Theme.Error}
+	dots := make([]string, 0, len(colors))
+	for _, color := range colors {
+		dots = append(dots, lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render("●"))
+	}
+	return strings.Join(dots, "  ") + "\n" +
+		renderHint(colors[0]+"  ·  "+colors[1]) + "\n" +
+		renderHint(colors[2]+"  ·  "+colors[3])
 }
 
 func (m Model) pluginsWorkspace(spec layoutSpec) string {
@@ -181,9 +198,9 @@ func (m Model) pluginsWorkspace(spec layoutSpec) string {
 		right := spec.contentWidth - gutter - left
 		body.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			workspaceBoxStyle.Copy().Width(innerBoxWidth(left)).Render(list),
+			totalWidthStyle(workspaceBoxStyle.Copy(), left).Render(list),
 			strings.Repeat(" ", gutter),
-			workspaceBoxStyle.Copy().Width(innerBoxWidth(right)).Render(details),
+			totalWidthStyle(workspaceBoxStyle.Copy(), right).Render(details),
 		))
 	} else {
 		body.WriteString(list)
@@ -212,7 +229,7 @@ func (m Model) pluginLibraryPanel(catalog []plugins.Definition) string {
 			check = "[x]"
 		}
 		state := pluginStateLabel(status)
-		row := fmt.Sprintf("%s %-21s %s", check, definition.Name, state)
+		row := fmt.Sprintf("%s %-18s %s", check, definition.Name, state)
 		if i == m.cursor {
 			row = selectedRowStyle.Render("› " + row)
 		} else {
@@ -266,13 +283,13 @@ func pluginStateLabel(status plugins.Status) string {
 	case status.Active:
 		return "Active"
 	case status.Installed && !status.Healthy:
-		return "Needs attention"
+		return "Attention"
 	case status.Installed && !status.Trusted:
-		return "Not trusted"
+		return "Untrusted"
 	case status.Installed:
 		return "Disabled"
 	default:
-		return "Not installed"
+		return "Missing"
 	}
 }
 
@@ -297,9 +314,9 @@ func (m Model) previewWorkspace(spec layoutSpec) string {
 		right := spec.contentWidth - gutter - left
 		body.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			workspaceBoxStyle.Copy().Width(innerBoxWidth(left)).Render(scenarios),
+			totalWidthStyle(workspaceBoxStyle.Copy(), left).Render(scenarios),
 			strings.Repeat(" ", gutter),
-			workspaceBoxStyle.Copy().Width(innerBoxWidth(right)).Render(context),
+			totalWidthStyle(workspaceBoxStyle.Copy(), right).Render(context),
 		))
 	} else {
 		body.WriteString(scenarios)
