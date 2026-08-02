@@ -1,0 +1,144 @@
+name: Apply theme gallery fix
+
+on:
+  push:
+    branches:
+      - fix/theme-gallery-v2
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/theme-gallery-v2
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.25.12'
+      - name: Replace hidden variants with direct choices
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          part3 = Path('internal/tui/tui_v2_part3.go')
+          text = part3.read_text()
+          start = text.index('func (m Model) themes() string {')
+          end = text.index('func (m Model) visibleThemeRange', start)
+          replacement = r'''func (m Model) themes() string {
+	presets := themecatalog.List()
+	var b strings.Builder
+	b.WriteString("Theme gallery\n")
+	fmt.Fprintf(&b, "%s\n", mutedStyle.Render(fmt.Sprintf("%d families · %d selectable presets", len(themecatalog.Families()), len(presets))))
+	b.WriteString("Circuit variants  ")
+	variantNames := make([]string, 0, len(themecatalog.Variants("circuit")))
+	for _, variant := range themecatalog.Variants("circuit") {
+		if preset, ok := themecatalog.Get("circuit", variant); ok {
+			variantNames = append(variantNames, preset.Name)
+		}
+	}
+	b.WriteString(mutedStyle.Render(strings.Join(variantNames, " · ")))
+	b.WriteString("\n\n")
+	if len(presets) == 0 {
+		return "Theme gallery\n\nNo presets available."
+	}
+	start, end := m.visibleThemeRange(len(presets))
+	if start > 0 {
+		b.WriteString(mutedStyle.Render("  ↑ more"))
+		b.WriteByte('\n')
+	}
+	for i := start; i < end; i++ {
+		preset := presets[i]
+		prefix := "  "
+		if i == m.cursor {
+			prefix = "> "
+		}
+		applied := " "
+		if m.cfg.Theme.ID == preset.ID && m.cfg.Theme.Variant == preset.Variant {
+			applied = "✓"
+		}
+		fmt.Fprintf(&b, "%s%s %-15s %s\n", prefix, applied, preset.Name, preset.Description)
+	}
+	if end < len(presets) {
+		b.WriteString(mutedStyle.Render("  ↓ more"))
+		b.WriteByte('\n')
+	}
+
+	selected, ok := m.selectedTheme()
+	if !ok {
+		return b.String()
+	}
+	b.WriteString("\n")
+	b.WriteString(accentStyle.Render(selected.Name))
+	if selected.Variant != "" {
+		fmt.Fprintf(&b, "  %s", mutedStyle.Render("variant: "+selected.Variant))
+	}
+	b.WriteString("\n")
+	b.WriteString(selected.Description)
+	b.WriteString("\n")
+	b.WriteString(themeSwatches(selected))
+	b.WriteString("\n")
+	b.WriteString(prompt.Simulated(themecatalog.Apply(m.cfg, selected)))
+	b.WriteString("\n\n")
+	b.WriteString(mutedStyle.Render("up/down choose · enter apply · [/] jump Circuit variants · c save custom"))
+	return b.String()
+}
+
+'''
+          part3.write_text(text[:start] + replacement + text[end:])
+
+          part4 = Path('internal/tui/tui_v2_part4.go')
+          text = part4.read_text()
+          start = text.index('func (m Model) selectedTheme()')
+          replacement = r'''func (m Model) selectedTheme() (themecatalog.Preset, bool) {
+	presets := themecatalog.List()
+	if m.cursor < 0 || m.cursor >= len(presets) {
+		return themecatalog.Preset{}, false
+	}
+	return presets[m.cursor], true
+}
+'''
+          part4.write_text(text[:start] + replacement)
+
+          part5 = Path('internal/tui/tui_v2_part5.go')
+          text = part5.read_text()
+          start = text.index('func (m *Model) cycleThemeVariant')
+          end = text.index('func (m *Model) togglePluginAtCursor', start)
+          replacement = r'''func (m *Model) cycleThemeVariant(delta int) {
+	presets := themecatalog.List()
+	if m.cursor < 0 || m.cursor >= len(presets) || presets[m.cursor].ID != "circuit" {
+		return
+	}
+	indices := make([]int, 0, len(themecatalog.Variants("circuit")))
+	position := 0
+	for index, preset := range presets {
+		if preset.ID != "circuit" {
+			continue
+		}
+		if index == m.cursor {
+			position = len(indices)
+		}
+		indices = append(indices, index)
+	}
+	if len(indices) == 0 {
+		return
+	}
+	m.cursor = indices[wrapIndex(position+delta, len(indices))]
+}
+
+'''
+          part5.write_text(text[:start] + replacement + text[end:])
+          PY
+          gofmt -w internal/tui/tui_v2_part3.go internal/tui/tui_v2_part4.go internal/tui/tui_v2_part5.go
+      - name: Remove temporary workflow
+        run: rm .github/workflows/apply-theme-gallery-fix.yml
+      - name: Commit implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add internal/tui/tui_v2_part3.go internal/tui/tui_v2_part4.go internal/tui/tui_v2_part5.go .github/workflows/apply-theme-gallery-fix.yml
+          git commit -m 'fix(tui): expose Circuit variants directly'
+          git push origin HEAD:fix/theme-gallery-v2
