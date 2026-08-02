@@ -16,39 +16,40 @@ import (
 func (m Model) themes() string {
 	presets := themecatalog.List()
 	var b strings.Builder
-	b.WriteString("Theme gallery\n")
-	fmt.Fprintf(&b, "%s\n", mutedStyle.Render(fmt.Sprintf("%d families · %d selectable presets", len(themecatalog.Families()), len(presets))))
-	b.WriteString("Circuit variants  ")
+	b.WriteString(renderSectionHeader("Theme gallery", fmt.Sprintf("%d families · %d selectable presets", len(themecatalog.Families()), len(presets))))
+	b.WriteString("\n\n")
+	b.WriteString(renderGroupLabel("Circuit variants"))
+	b.WriteString("\n")
 	variantNames := make([]string, 0, len(themecatalog.Variants("circuit")))
 	for _, variant := range themecatalog.Variants("circuit") {
 		if preset, ok := themecatalog.Get("circuit", variant); ok {
 			variantNames = append(variantNames, preset.Name)
 		}
 	}
-	b.WriteString(mutedStyle.Render(strings.Join(variantNames, " · ")))
+	b.WriteString(sectionSubtitleStyle.Copy().MaxWidth(m.contentWidth()).Render(strings.Join(variantNames, " · ")))
 	b.WriteString("\n\n")
 	if len(presets) == 0 {
 		return "Theme gallery\n\nNo presets available."
 	}
 	start, end := m.visibleThemeRange(len(presets))
 	if start > 0 {
-		b.WriteString(mutedStyle.Render("  ↑ more"))
+		b.WriteString(renderHint("  ↑ more"))
 		b.WriteByte('\n')
 	}
 	for i := start; i < end; i++ {
 		preset := presets[i]
 		prefix := "  "
 		if i == m.cursor {
-			prefix = "> "
+			prefix = accentStyle.Render(">") + " "
 		}
 		applied := " "
 		if m.cfg.Theme.ID == preset.ID && m.cfg.Theme.Variant == preset.Variant {
-			applied = "✓"
+			applied = lipgloss.NewStyle().Foreground(visualPalette.Success).Bold(true).Render("✓")
 		}
-		fmt.Fprintf(&b, "%s%s %-15s %s\n", prefix, applied, preset.Name, preset.Description)
+		fmt.Fprintf(&b, "%s%s %-15s %s\n", prefix, applied, preset.Name, sectionSubtitleStyle.Render(preset.Description))
 	}
 	if end < len(presets) {
-		b.WriteString(mutedStyle.Render("  ↓ more"))
+		b.WriteString(renderHint("  ↓ more"))
 		b.WriteByte('\n')
 	}
 
@@ -57,18 +58,21 @@ func (m Model) themes() string {
 		return b.String()
 	}
 	b.WriteString("\n")
-	b.WriteString(accentStyle.Render(selected.Name))
+	title := accentStyle.Render(selected.Name)
 	if selected.Variant != "" {
-		fmt.Fprintf(&b, "  %s", mutedStyle.Render("variant: "+selected.Variant))
+		title = lipgloss.JoinHorizontal(lipgloss.Center, title, "  ", renderVariantBadge(selected.Variant))
 	}
+	b.WriteString(title)
 	b.WriteString("\n")
-	b.WriteString(selected.Description)
+	b.WriteString(sectionSubtitleStyle.Render(selected.Description))
+	b.WriteString("\n\n")
+	b.WriteString(renderGroupLabel("Palette"))
 	b.WriteString("\n")
 	b.WriteString(themeSwatches(selected))
-	b.WriteString("\n")
-	b.WriteString(prompt.Simulated(themecatalog.Apply(m.cfg, selected)))
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("up/down choose · enter apply · [/] jump Circuit variants · c save custom"))
+	b.WriteString(renderPreviewBox("Preview", prompt.Simulated(themecatalog.Apply(m.cfg, selected)), m.contentWidth()))
+	b.WriteString("\n\n")
+	b.WriteString(renderHint("up/down choose  ·  enter apply  ·  [/] jump Circuit variants  ·  c save custom"))
 	return b.String()
 }
 
@@ -76,7 +80,7 @@ func (m Model) visibleThemeRange(total int) (int, int) {
 	if total <= 0 || m.height == 0 {
 		return 0, total
 	}
-	rows := m.height - 18
+	rows := m.height - 22
 	if rows < 4 {
 		rows = 4
 	}
@@ -106,18 +110,17 @@ func themeSwatches(preset themecatalog.Preset) string {
 	for _, color := range colors {
 		items = append(items, lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render("●"))
 	}
-	return strings.Join(items, " ") + "  " + mutedStyle.Render(strings.Join(colors, " · "))
+	return strings.Join(items, "  ") + "    " + sectionSubtitleStyle.Render(strings.Join(colors, "  ·  "))
 }
 
 func (m Model) plugins() string {
 	var b strings.Builder
-	b.WriteString("Plugins\n")
-	b.WriteString(mutedStyle.Render("Recommended setup · selected by default"))
+	b.WriteString(renderSectionHeader("Plugins", "Recommended setup · selected by default"))
 	b.WriteString("\n\n")
 	for i, definition := range plugins.Catalog() {
 		prefix := "  "
 		if i == m.cursor {
-			prefix = "> "
+			prefix = accentStyle.Render(">") + " "
 		}
 		status := plugins.StatusFor(m.cfg, definition)
 		check := "[ ]"
@@ -125,46 +128,54 @@ func (m Model) plugins() string {
 			check = "[x]"
 		}
 		state := "Not installed"
+		stateStyle := sectionSubtitleStyle
 		switch {
 		case status.Active:
 			state = "Active"
+			stateStyle = lipgloss.NewStyle().Foreground(visualPalette.Success).Bold(true)
 		case status.Installed && !status.Healthy:
 			state = "Needs attention"
+			stateStyle = lipgloss.NewStyle().Foreground(visualPalette.Warning).Bold(true)
 		case status.Installed && !status.Trusted:
 			state = "Installed · not trusted"
+			stateStyle = lipgloss.NewStyle().Foreground(visualPalette.Warning)
 		case status.Installed:
 			state = "Installed · disabled"
 		}
-		fmt.Fprintf(&b, "%s%s %-20s %s\n", prefix, check, definition.Name, state)
-		fmt.Fprintf(&b, "      %s\n", mutedStyle.Render(definition.Description))
+		fmt.Fprintf(&b, "%s%s %-20s %s\n", prefix, check, definition.Name, stateStyle.Render(state))
+		fmt.Fprintf(&b, "      %s\n", sectionSubtitleStyle.Render(definition.Description))
 	}
 	missing := m.missingSelectedPlugins()
 	b.WriteString("\n")
 	if missing > 0 {
-		fmt.Fprintf(&b, "[i] Install %d selected plugins\n", missing)
+		fmt.Fprintf(&b, "%s\n", lipgloss.NewStyle().Foreground(visualPalette.Warning).Bold(true).Render(fmt.Sprintf("[i] Install %d selected plugins", missing)))
 	} else {
-		b.WriteString(accentStyle.Render("✓ Selected plugins are installed"))
+		b.WriteString(renderStatus("Selected plugins are installed", false))
 		b.WriteByte('\n')
 	}
-	b.WriteString("[space] Toggle selection\n")
-	b.WriteString("[x] Advanced custom plugins")
+	b.WriteString("[space]  Toggle selection\n")
+	b.WriteString("[x]      Advanced custom plugins")
 	if m.pluginAdvanced {
-		b.WriteString("\n\nAdvanced\n")
+		b.WriteString("\n\n")
+		b.WriteString(renderGroupLabel("Advanced"))
+		b.WriteString("\n")
 		for displayIndex, itemIndex := range m.customPluginIndices() {
 			item := m.cfg.Plugins.Items[itemIndex]
 			prefix := "  "
 			if m.cursor == len(plugins.Catalog())+displayIndex {
-				prefix = "> "
+				prefix = accentStyle.Render(">") + " "
 			}
 			fmt.Fprintf(&b, "%s%s · enabled=%t · trusted=%t\n", prefix, item.Name, item.Enabled, item.Trusted)
 		}
-		b.WriteString("\nAdd from repository\n")
+		b.WriteString("\n")
+		b.WriteString(renderGroupLabel("Add from repository"))
+		b.WriteString("\n")
 		b.WriteString(m.pluginURL.View())
 		b.WriteByte('\n')
 		b.WriteString(m.pluginLoad.View())
 	}
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("enter/space toggle · i install · x advanced"))
+	b.WriteString(renderHint("enter/space toggle  ·  i install  ·  x advanced"))
 	return b.String()
 }
 
