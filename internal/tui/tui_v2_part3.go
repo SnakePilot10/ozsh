@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/snakepilot10/ozsh/internal/fonts"
@@ -9,7 +11,6 @@ import (
 	"github.com/snakepilot10/ozsh/internal/prompt"
 	"github.com/snakepilot10/ozsh/internal/shell"
 	themecatalog "github.com/snakepilot10/ozsh/internal/themes"
-	"strings"
 )
 
 func (m Model) themes() string {

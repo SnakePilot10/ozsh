@@ -1,14 +1,15 @@
 package tui
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/snakepilot10/ozsh/internal/config"
 	"github.com/snakepilot10/ozsh/internal/prompt"
 	"github.com/snakepilot10/ozsh/internal/shell"
 	themecatalog "github.com/snakepilot10/ozsh/internal/themes"
-	"strconv"
-	"strings"
 )
 
 func promptSegmentIcon(promptConfig config.PromptConfig, segment config.SegmentConfig) string {

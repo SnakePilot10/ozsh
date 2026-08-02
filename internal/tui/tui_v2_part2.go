@@ -2,16 +2,17 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/snakepilot10/ozsh/internal/config"
 	"github.com/snakepilot10/ozsh/internal/fonts"
 	"github.com/snakepilot10/ozsh/internal/plugins"
 	"github.com/snakepilot10/ozsh/internal/prompt"
 	"github.com/snakepilot10/ozsh/internal/shell"
-	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 )
 
 func (m Model) View() string {
@@ -190,8 +191,6 @@ func (m Model) backupDialog() string {
 	b.WriteString(mutedStyle.Render("up/down choose · enter continue · esc close"))
 	return b.String()
 }
-
-func (m Model) dashboard() string { return m.home() }
 
 func (m Model) builder() string {
 	var b strings.Builder

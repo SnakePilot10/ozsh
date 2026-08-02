@@ -3,15 +3,16 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	applyop "github.com/snakepilot10/ozsh/internal/apply"
 	"github.com/snakepilot10/ozsh/internal/config"
 	"github.com/snakepilot10/ozsh/internal/fonts"
 	"github.com/snakepilot10/ozsh/internal/plugins"
 	"github.com/snakepilot10/ozsh/internal/shell"
-	"os"
-	"strings"
-	"time"
 )
 
 type applyResult string

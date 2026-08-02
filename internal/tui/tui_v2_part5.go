@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+
 	"github.com/snakepilot10/ozsh/internal/config"
 	"github.com/snakepilot10/ozsh/internal/plugins"
 	themecatalog "github.com/snakepilot10/ozsh/internal/themes"
