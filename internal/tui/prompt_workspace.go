@@ -32,8 +32,8 @@ var (
 func (m Model) promptWorkspace(spec layoutSpec) string {
 	if m.promptEditingName {
 		return renderSectionHeader("Prompt", "Edit the display identity") + "\n\n" +
-		renderGroupLabel("Display name") + "\n" + m.promptName.View() + "\n\n" +
-		renderHint("enter keep  ·  esc cancel")
+			renderGroupLabel("Display name") + "\n" + m.promptName.View() + "\n\n" +
+			renderHint("enter keep  ·  esc cancel")
 	}
 
 	var b strings.Builder
@@ -131,7 +131,7 @@ func (m Model) promptConfigurationPanel(width int, compact bool) string {
 	b.WriteString(renderKeyValue("Separator", separator))
 	b.WriteString("\n")
 	b.WriteString(renderKeyValue("Heavy", heavy))
-	return workspaceBoxStyle.Copy().Width(innerBoxWidth(width)).Render(b.String())
+	return totalWidthStyle(workspaceBoxStyle.Copy(), width).Render(b.String())
 }
 
 func (m Model) promptSegmentsPanel(width, maxRows int) string {
@@ -183,7 +183,7 @@ func (m Model) promptSegmentsPanel(width, maxRows int) string {
 		}
 		row := fmt.Sprintf("%s %s%s", state, icon, segmentLabel(name))
 		if i == m.cursor {
-			row = selectedRowStyle.Copy().Width(rowWidth(width)).Render("› " + row)
+			row = selectedRowStyle.Copy().Width(innerBoxWidth(width)).Render("› " + row)
 		} else {
 			row = "  " + row
 		}
@@ -197,7 +197,7 @@ func (m Model) promptSegmentsPanel(width, maxRows int) string {
 		b.WriteString(renderHint("↓ more"))
 	}
 	if width >= 34 {
-		return workspaceBoxStyle.Copy().Width(innerBoxWidth(width)).Render(b.String())
+		return totalWidthStyle(workspaceBoxStyle.Copy(), width).Render(b.String())
 	}
 	return b.String()
 }
@@ -257,7 +257,7 @@ func (m Model) selectedSegmentPanel(width int, compact bool) string {
 	b.WriteString(renderKeyValue("Style", style))
 	b.WriteString("\n")
 	b.WriteString(renderKeyValue("Condition", segmentCondition(name, segment)))
-	return workspaceBoxStyle.Copy().Width(innerBoxWidth(width)).Render(b.String())
+	return totalWidthStyle(workspaceBoxStyle.Copy(), width).Render(b.String())
 }
 
 func (m Model) selectedSegment() (string, config.SegmentConfig, bool) {
@@ -322,14 +322,6 @@ func segmentCondition(name string, segment config.SegmentConfig) string {
 
 func innerBoxWidth(width int) int {
 	inner := width - workspaceBoxStyle.GetHorizontalFrameSize()
-	if inner < 1 {
-		return 1
-	}
-	return inner
-}
-
-func rowWidth(width int) int {
-	inner := innerBoxWidth(width) - 2
 	if inner < 1 {
 		return 1
 	}
