@@ -34,50 +34,50 @@ var visualPalette = struct {
 
 var (
 	logoStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Accent).
-		Bold(true)
+			Foreground(visualPalette.Accent).
+			Bold(true)
 
 	tabActiveStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Accent).
-		Background(visualPalette.Surface).
-		Bold(true).
-		Underline(true)
+			Foreground(visualPalette.Accent).
+			Background(visualPalette.Surface).
+			Bold(true).
+			Underline(true)
 
 	tabInactiveStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Subtle)
+				Foreground(visualPalette.Subtle)
 
 	sectionTitleStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Text).
-		Bold(true)
+				Foreground(visualPalette.Text).
+				Bold(true)
 
 	sectionSubtitleStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Subtle)
+				Foreground(visualPalette.Subtle)
 
 	groupLabelStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Accent).
-		Bold(true)
+			Foreground(visualPalette.Accent).
+			Bold(true)
 
 	keyStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Subtle).
-		Width(12)
+			Foreground(visualPalette.Subtle).
+			Width(12)
 
 	valueStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Text)
+			Foreground(visualPalette.Text)
 
 	hintStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Muted)
+			Foreground(visualPalette.Muted)
 
 	previewBoxStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Text).
-		Background(visualPalette.Surface).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(visualPalette.Border).
-		Padding(0, 1)
+			Foreground(visualPalette.Text).
+			Background(visualPalette.Surface).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(visualPalette.Border).
+			Padding(0, 1)
 
 	variantBadgeStyle = lipgloss.NewStyle().
-		Foreground(visualPalette.Accent).
-		Background(visualPalette.Surface).
-		Padding(0, 1)
+				Foreground(visualPalette.Accent).
+				Background(visualPalette.Surface).
+				Padding(0, 1)
 )
 
 // init upgrades the compatibility styles still used by older render helpers.
@@ -95,14 +95,13 @@ func init() {
 }
 
 func renderTab(label string, active, compact bool) string {
-	style := tabInactiveStyle.Copy()
 	if active {
-		style = tabActiveStyle.Copy()
+		if compact {
+			return tabActiveStyle.Render("▸ " + label)
+		}
+		return tabActiveStyle.Padding(0, 1).Render(label)
 	}
-	if !compact {
-		style = style.Padding(0, 1)
-	}
-	return style.Render(label)
+	return tabInactiveStyle.Render(label)
 }
 
 func renderHeader(active, width int) string {
