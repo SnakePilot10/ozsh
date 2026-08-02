@@ -10,57 +10,65 @@ import (
 const wideLayoutMinWidth = 72
 
 type layoutSpec struct {
-	terminalWidth   int
-	terminalHeight  int
-	contentWidth    int
-	contentHeight   int
-	workspaceHeight int
-	wide            bool
-	short           bool
+	terminalWidth    int
+	terminalHeight   int
+	contentWidth     int
+	contentHeight    int
+	workspaceWidth   int
+	workspaceHeight  int
+	workspaceContentHeight int
+	wide             bool
+	short            bool
 }
 
 func (m Model) layout() layoutSpec {
 	terminalWidth := m.width
 	if terminalWidth <= 0 {
-		terminalWidth = 76 + panelStyle.GetHorizontalFrameSize()
+		terminalWidth = 82
 	}
 	terminalHeight := m.height
 	if terminalHeight <= 0 {
 		terminalHeight = 30
 	}
 
-	contentWidth := terminalWidth - panelStyle.GetHorizontalFrameSize()
-	if contentWidth < 1 {
-		contentWidth = 1
+	workspaceWidth := terminalWidth - panelStyle.GetHorizontalFrameSize()
+	if workspaceWidth < 1 {
+		workspaceWidth = 1
 	}
-	contentHeight := terminalHeight - panelStyle.GetVerticalFrameSize()
-	if contentHeight < 1 {
-		contentHeight = 1
+	workspaceContentHeight := terminalHeight - panelStyle.GetVerticalFrameSize()
+	if workspaceContentHeight < 1 {
+		workspaceContentHeight = 1
 	}
 
-	headerHeight := lipgloss.Height(renderHeader(m.tab, contentWidth))
+	headerHeight := lipgloss.Height(renderHeader(m.tab, workspaceWidth))
 	footerHeight := 1
 	statusHeight := 0
 	if strings.TrimSpace(m.msg) != "" {
 		statusHeight = 1
 	}
-	workspaceHeight := contentHeight - headerHeight - footerHeight - statusHeight - 2
+	workspaceHeight := workspaceContentHeight - headerHeight - footerHeight - statusHeight - 2
 	if workspaceHeight < 1 {
 		workspaceHeight = 1
 	}
 
 	return layoutSpec{
-		terminalWidth:   terminalWidth,
-		terminalHeight:  terminalHeight,
-		contentWidth:    contentWidth,
-		contentHeight:   contentHeight,
-		workspaceHeight: workspaceHeight,
-		wide:            contentWidth >= wideLayoutMinWidth,
-		short:           contentHeight < 22,
+		terminalWidth:          terminalWidth,
+		terminalHeight:         terminalHeight,
+		contentWidth:           terminalWidth,
+		contentHeight:          terminalHeight,
+		workspaceWidth:         workspaceWidth,
+		workspaceHeight:        workspaceHeight,
+		workspaceContentHeight: workspaceContentHeight,
+		wide:                   workspaceWidth >= wideLayoutMinWidth,
+		short:                  workspaceContentHeight < 22,
 	}
 }
 
 func (m Model) workspaceContent(spec layoutSpec) string {
+	viewSpec := spec
+	viewSpec.contentWidth = spec.workspaceWidth
+	viewSpec.contentHeight = spec.workspaceContentHeight
+
 	switch {
 	case m.busy && m.operation == "plugins":
 		return "Installing plugins…\n\nCloning and validating the selected repositories."
@@ -84,15 +92,15 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 
 	switch m.tab {
 	case tabHome:
-		return m.homeWorkspace(spec)
+		return m.homeWorkspace(viewSpec)
 	case tabPrompt:
-		return m.promptWorkspace(spec)
+		return m.promptWorkspace(viewSpec)
 	case tabThemes:
-		return m.themesWorkspace(spec)
+		return m.themesWorkspace(viewSpec)
 	case tabPlugins:
-		return m.pluginsWorkspace(spec)
+		return m.pluginsWorkspace(viewSpec)
 	case tabPreview:
-		return m.previewWorkspace(spec)
+		return m.previewWorkspace(viewSpec)
 	default:
 		return ""
 	}
@@ -116,16 +124,21 @@ func screenFooter(tab int) string {
 }
 
 func composeFullscreen(header, body, status, footer string, spec layoutSpec) string {
-	header = truncateBlock(header, spec.contentWidth)
-	body = padBlock(body, spec.contentWidth, spec.workspaceHeight)
-	footer = fitHeight(footer, spec.contentWidth, 1)
+	width := spec.workspaceWidth
+	height := spec.workspaceContentHeight
+	header = truncateBlock(header, width)
+	body = padBlock(body, width, spec.workspaceHeight)
+	if ansi.StringWidth(footer) > width {
+		footer = renderHint("Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+	}
+	footer = fitHeight(footer, width, 1)
 
 	parts := []string{header, "", body}
 	if strings.TrimSpace(status) != "" {
-		parts = append(parts, fitHeight(status, spec.contentWidth, 1))
+		parts = append(parts, fitHeight(status, width, 1))
 	}
 	parts = append(parts, "", footer)
-	return fitHeight(strings.Join(parts, "\n"), spec.contentWidth, spec.contentHeight)
+	return fitHeight(strings.Join(parts, "\n"), width, height)
 }
 
 func padBlock(value string, width, height int) string {
