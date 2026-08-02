@@ -1,6 +1,14 @@
 package config
 
-const CurrentConfigVersion = 1
+const CurrentConfigVersion = 2
+
+const (
+	IconModeCompatible = "compatible"
+	IconModeNerd       = "nerd"
+
+	PromptLayoutOneLine = "one-line"
+	PromptLayoutTwoLine = "two-line"
+)
 
 type Config struct {
 	Version int          `toml:"version"`
@@ -11,6 +19,10 @@ type Config struct {
 
 type PromptConfig struct {
 	Style                string                   `toml:"style"`
+	DisplayName          string                   `toml:"display_name"`
+	IconMode             string                   `toml:"icon_mode"`
+	Layout               string                   `toml:"layout"`
+	Symbol               string                   `toml:"symbol"`
 	Newline              bool                     `toml:"newline"`
 	RightPrompt          bool                     `toml:"right_prompt"`
 	DisableHeavySegments bool                     `toml:"disable_heavy_segments"`
@@ -21,17 +33,20 @@ type PromptConfig struct {
 }
 
 type SegmentConfig struct {
-	Enabled     bool   `toml:"enabled"`
-	Icon        string `toml:"icon"`
-	FG          string `toml:"fg"`
-	BG          string `toml:"bg"`
-	Bold        bool   `toml:"bold"`
-	ShowSuccess bool   `toml:"show_success,omitempty"`
+	Enabled        bool   `toml:"enabled"`
+	Icon           string `toml:"icon,omitempty"`
+	CompatibleIcon string `toml:"compatible_icon"`
+	NerdIcon       string `toml:"nerd_icon"`
+	FG             string `toml:"fg"`
+	BG             string `toml:"bg"`
+	Bold           bool   `toml:"bold"`
+	ShowSuccess    bool   `toml:"show_success,omitempty"`
 }
 
 type PluginConfig struct {
-	Engine string       `toml:"engine"`
-	Items  []PluginItem `toml:"items"`
+	Engine   string       `toml:"engine"`
+	Selected []string     `toml:"selected"`
+	Items    []PluginItem `toml:"items"`
 }
 
 type PluginItem struct {
@@ -43,6 +58,8 @@ type PluginItem struct {
 }
 
 type ThemeConfig struct {
+	ID         string `toml:"id"`
+	Variant    string `toml:"variant"`
 	Name       string `toml:"name"`
 	Accent     string `toml:"accent"`
 	Background string `toml:"background"`
