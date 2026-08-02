@@ -134,9 +134,69 @@ func parseThemeSelection(args []string) (string, string, error) {
 '''
           text = text[:start] + replacement + text[end:]
           path.write_text(text)
+
+          test_path = Path("cmd/ozsh/main_test.go")
+          tests = test_path.read_text()
+          start = tests.index("func TestRunThemeCommands(t *testing.T) {")
+          end = tests.index("func TestRunPluginCommands", start)
+          replacement = r'''func TestRunThemeCommands(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	list := captureStdout(t, func() {
+		runTheme([]string{"list"})
+	})
+	for _, want := range []string{"circuit", "variants: blue, green, amber, red, mono, neon", "dracula"} {
+		if !strings.Contains(list, want) {
+			t.Fatalf("theme list output = %q, want %q", list, want)
+		}
+	}
+
+	applied := captureStdout(t, func() {
+		runTheme([]string{"apply", "circuit", "--variant", "amber"})
+	})
+	if !strings.Contains(applied, "theme applied: circuit (amber)") {
+		t.Fatalf("theme apply output = %q, want variant applied message", applied)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+	if cfg.Theme.ID != "circuit" || cfg.Theme.Variant != "amber" {
+		t.Fatalf("applied theme = %s/%s, want circuit/amber", cfg.Theme.ID, cfg.Theme.Variant)
+	}
+
+	preview := captureStdout(t, func() {
+		runTheme([]string{"preview", "dracula"})
+	})
+	if !strings.Contains(preview, "\x1b[38;2;189;147;249m") {
+		t.Fatalf("theme preview output = %q, want Dracula accent ANSI", preview)
+	}
+}
+
+func TestParseThemeSelection(t *testing.T) {
+	name, variant, err := parseThemeSelection([]string{"circuit", "--variant", "neon"})
+	if err != nil || name != "circuit" || variant != "neon" {
+		t.Fatalf("parseThemeSelection() = %q/%q, %v", name, variant, err)
+	}
+	for _, args := range [][]string{
+		nil,
+		{"circuit", "--variant"},
+		{"circuit", "--variant", "amber", "--variant", "red"},
+		{"dracula", "unexpected"},
+	} {
+		if _, _, err := parseThemeSelection(args); err == nil {
+			t.Fatalf("parseThemeSelection(%v) error = nil", args)
+		}
+	}
+}
+
+'''
+          tests = tests[:start] + replacement + tests[end:]
+          test_path.write_text(tests)
           PY
           go install golang.org/x/tools/cmd/goimports@v0.36.0
-          goimports -w cmd/ozsh/main_v2.go
+          goimports -w cmd/ozsh/main_v2.go cmd/ozsh/main_test.go
       - name: Remove temporary workflow
         run: rm .github/workflows/integrate-theme-cli.yml
       - name: Commit CLI integration
