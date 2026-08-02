@@ -18,21 +18,27 @@ func plainText(value string) string {
 func TestHeaderSeparatesBrandFromTabs(t *testing.T) {
 	model := NewModel(config.Default())
 	model.width, model.height = 72, 30
-	first := strings.Split(plainText(model.View()), "\n")[0]
-	brand := strings.Index(first, "ozsh")
-	home := strings.Index(first, "Home")
+	var header string
+	for _, line := range strings.Split(plainText(model.View()), "\n") {
+		if strings.Contains(line, "ozsh") && strings.Contains(line, "Home") {
+			header = line
+			break
+		}
+	}
+	brand := strings.Index(header, "ozsh")
+	home := strings.Index(header, "Home")
 	if brand < 0 || home < 0 {
-		t.Fatalf("header lost brand or first tab: %q", first)
+		t.Fatalf("header lost brand or first tab: %q", header)
 	}
 	gap := home - (brand + len("ozsh"))
 	if gap < 2 {
-		t.Fatalf("brand-to-tabs gap = %d, want at least 2 cells: %q", gap, first)
+		t.Fatalf("brand-to-tabs gap = %d, want at least 2 cells: %q", gap, header)
 	}
 }
 
 func TestActiveAndInactiveTabsRenderDifferently(t *testing.T) {
 	active := renderTab("Home", true, false)
-	inactive := renderTab("Prompt", false, false)
+	inactive := renderTab("Home", false, false)
 	if active == inactive {
 		t.Fatalf("tab states render identically: active=%q inactive=%q", active, inactive)
 	}
