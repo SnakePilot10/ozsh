@@ -50,10 +50,10 @@ func TestActiveAndInactiveTabsRenderDifferently(t *testing.T) {
 func TestThemeDetailsSeparatePaletteFromPreview(t *testing.T) {
 	model := NewModel(config.Default())
 	model.setTab(tabThemes)
-	model.width, model.height = 72, 32
-	view := plainText(model.themes())
+	model.width, model.height = 100, 34
+	view := plainText(model.View())
 	palette := strings.Index(view, "Palette")
-	preview := strings.Index(view, "Preview")
+	preview := strings.Index(view, "Live preview")
 	if palette < 0 || preview < 0 || palette >= preview {
 		t.Fatalf("theme metadata hierarchy missing:\n%s", view)
 	}
@@ -66,7 +66,7 @@ func TestThemeDetailsSeparatePaletteFromPreview(t *testing.T) {
 }
 
 func TestFiveScreensRemainReadableAtNarrowWidth(t *testing.T) {
-	headings := []string{"Welcome", "Prompt", "Theme gallery", "Plugins", "Preview"}
+	headings := []string{"Home", "Prompt", "Themes", "Plugins", "Preview"}
 	for tab, heading := range headings {
 		model := NewModel(config.Default())
 		model.width, model.height = 58, 28
@@ -79,10 +79,18 @@ func TestFiveScreensRemainReadableAtNarrowWidth(t *testing.T) {
 		if !strings.Contains(strings.ToLower(plain), "apply") || !strings.Contains(strings.ToLower(plain), "quit") {
 			t.Fatalf("tab %d lost global help:\n%s", tab, plain)
 		}
-		for _, line := range strings.Split(view, "\n") {
-			if lipgloss.Width(line) > model.width {
-				t.Fatalf("tab %d line width %d exceeds terminal %d: %q", tab, lipgloss.Width(line), model.width, plainText(line))
-			}
+		assertViewBounds(t, view, model.width, model.height)
+	}
+}
+
+func TestAllScreensRespectResponsiveBounds(t *testing.T) {
+	dimensions := [][2]int{{100, 34}, {72, 30}, {58, 28}, {48, 18}}
+	for tab := range tabs {
+		for _, size := range dimensions {
+			model := NewModel(config.Default())
+			model.width, model.height = size[0], size[1]
+			model.setTab(tab)
+			assertViewBounds(t, model.View(), model.width, model.height)
 		}
 	}
 }
