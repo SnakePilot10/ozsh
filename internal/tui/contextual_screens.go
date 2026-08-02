@@ -278,6 +278,8 @@ func (m Model) selectedPluginPanel(catalog []plugins.Definition) string {
 	b.WriteString("\n")
 	b.WriteString(definition.Description)
 	b.WriteString("\n\n")
+	b.WriteString(renderKeyValue("State", pluginStateLabel(status)))
+	b.WriteString("\n")
 	b.WriteString(renderKeyValue("Selected", yesNo(status.Selected)))
 	b.WriteString("\n")
 	b.WriteString(renderKeyValue("Installed", yesNo(status.Installed)))
