@@ -83,23 +83,35 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 
 	switch m.tab {
 	case tabHome:
-		return m.home()
+		return m.homeWorkspace(spec)
 	case tabPrompt:
 		return m.promptWorkspace(spec)
 	case tabThemes:
-		return m.themes()
+		return m.themesWorkspace(spec)
 	case tabPlugins:
-		return m.plugins()
+		return m.pluginsWorkspace(spec)
 	case tabPreview:
-		return m.preview()
+		return m.previewWorkspace(spec)
 	default:
 		return ""
 	}
 }
 
 func screenFooter(tab int) string {
-	_ = tab
-	return renderHint("Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+	switch tab {
+	case tabHome:
+		return renderHint("d doctor  ·  f font  ·  r restore  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+	case tabPrompt:
+		return renderHint("space toggle  ·  J/K reorder  ·  v details  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+	case tabThemes:
+		return renderHint("up/down choose  ·  enter apply  ·  [/] Circuit  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+	case tabPlugins:
+		return renderHint("space toggle  ·  i install  ·  x advanced  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+	case tabPreview:
+		return renderHint("[/] scenario  ·  up/down field  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+	default:
+		return renderHint("Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+	}
 }
 
 func composeFullscreen(header, body, status, footer string, spec layoutSpec) string {
