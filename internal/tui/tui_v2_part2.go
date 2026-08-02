@@ -17,9 +17,8 @@ import (
 
 func (m Model) View() string {
 	var b strings.Builder
-	b.WriteString(accentStyle.Render("ozsh"))
-	b.WriteString(" ")
-	b.WriteString(m.renderTabs())
+	contentWidth := m.contentWidth()
+	b.WriteString(renderHeader(m.tab, contentWidth))
 	b.WriteString("\n\n")
 
 	if m.busy && m.operation == "plugins" {
@@ -56,39 +55,19 @@ func (m Model) View() string {
 	}
 
 	if m.msg != "" {
+		failed := strings.Contains(strings.ToLower(m.msg), "error") || strings.Contains(strings.ToLower(m.msg), "failed")
 		b.WriteString("\n\n")
-		if strings.Contains(strings.ToLower(m.msg), "error") || strings.Contains(strings.ToLower(m.msg), "failed") {
-			b.WriteString(errorStyle.Render(m.msg))
-		} else {
-			b.WriteString(mutedStyle.Render(m.msg))
-		}
+		b.WriteString(renderStatus(m.msg, failed))
 	}
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("Ctrl+A apply · ? help · Ctrl+C quit"))
-	contentWidth := m.contentWidth()
+	b.WriteString(renderHint("Ctrl+A apply  ·  ? help  ·  Ctrl+C quit"))
+
 	content := fitBlock(b.String(), contentWidth)
 	panel := panelStyle.Copy()
 	if m.width > 0 {
 		panel = panel.Width(contentWidth)
 	}
 	return panel.Render(content)
-}
-
-func (m Model) renderTabs() string {
-	items := make([]string, len(tabs))
-	for i, tab := range tabs {
-		if i == m.tab {
-			items[i] = accentStyle.Render(tab)
-		} else {
-			items[i] = mutedStyle.Render(tab)
-		}
-	}
-	full := strings.Join(items, "  ")
-	maxWidth := m.contentWidth() - lipgloss.Width("ozsh ")
-	if maxWidth <= 0 || lipgloss.Width(full) <= maxWidth {
-		return full
-	}
-	return strings.Join(items[:3], "  ") + "\n     " + strings.Join(items[3:], "  ")
 }
 
 func (m Model) contentWidth() int {
@@ -120,8 +99,29 @@ func (m Model) home() string {
 	if shell.IsTermux() {
 		platform = "Termux · " + platform
 	}
-	return fmt.Sprintf("Welcome\n\nStatus      %s\nTheme       %s\nIcon mode   %s\nPlugins     %d selected\nBackups     %d\n\nActions\n[d] Run Doctor\n[f] Manage Nerd Font\n[r] Restore Backup\n[a] Review & Apply",
-		platform, m.cfg.Theme.Name, m.cfg.Prompt.IconMode, len(m.cfg.Plugins.Selected), backupCount())
+
+	var b strings.Builder
+	b.WriteString(renderSectionHeader("Welcome", "System overview and quick actions"))
+	b.WriteString("\n\n")
+	b.WriteString(renderGroupLabel("Status"))
+	b.WriteString("\n")
+	b.WriteString(renderKeyValue("Platform", platform))
+	b.WriteString("\n")
+	b.WriteString(renderKeyValue("Theme", m.cfg.Theme.Name))
+	b.WriteString("\n")
+	b.WriteString(renderKeyValue("Icon mode", string(m.cfg.Prompt.IconMode)))
+	b.WriteString("\n")
+	b.WriteString(renderKeyValue("Plugins", fmt.Sprintf("%d selected", len(m.cfg.Plugins.Selected))))
+	b.WriteString("\n")
+	b.WriteString(renderKeyValue("Backups", fmt.Sprintf("%d", backupCount())))
+	b.WriteString("\n\n")
+	b.WriteString(renderGroupLabel("Actions"))
+	b.WriteString("\n")
+	b.WriteString("[d]  Run Doctor\n")
+	b.WriteString("[f]  Manage Nerd Font\n")
+	b.WriteString("[r]  Restore Backup\n")
+	b.WriteString("[a]  Review & Apply")
+	return b.String()
 }
 
 func (m Model) fontDialog() string {
@@ -164,7 +164,7 @@ func (m Model) fontDialog() string {
 		b.WriteString("Linux: install for this user, then choose the font in terminal settings.\n")
 	}
 	b.WriteString("\n")
-	b.WriteString(mutedStyle.Render("up/down choose · enter continue · esc close"))
+	b.WriteString(renderHint("up/down choose  ·  enter continue  ·  esc close"))
 	return b.String()
 }
 
@@ -188,19 +188,18 @@ func (m Model) backupDialog() string {
 		fmt.Fprintf(&b, "%s%s\n", prefix, filepath.Base(path))
 	}
 	b.WriteString("\n")
-	b.WriteString(mutedStyle.Render("up/down choose · enter continue · esc close"))
+	b.WriteString(renderHint("up/down choose  ·  enter continue  ·  esc close"))
 	return b.String()
 }
 
 func (m Model) builder() string {
 	var b strings.Builder
-	b.WriteString("Prompt\n")
-	b.WriteString(mutedStyle.Render("Identity and layout"))
+	b.WriteString(renderSectionHeader("Prompt", "Identity, layout, and visible segments"))
 	b.WriteString("\n\n")
 	if m.promptEditingName {
 		b.WriteString(m.promptName.View())
 		b.WriteString("\n")
-		b.WriteString(mutedStyle.Render("enter keep · esc cancel"))
+		b.WriteString(renderHint("enter keep  ·  esc cancel"))
 		return b.String()
 	}
 	displayName := m.cfg.Prompt.DisplayName
@@ -215,11 +214,13 @@ func (m Model) builder() string {
 	if m.cfg.Prompt.IconMode == config.IconModeNerd {
 		iconMode = "Nerd Font"
 	}
-	fmt.Fprintf(&b, "[u] Display name  %s\n", accentStyle.Render(displayName))
-	fmt.Fprintf(&b, "[l] Layout       %s\n", layout)
-	fmt.Fprintf(&b, "[o] Symbol       %s\n", m.cfg.Prompt.Symbol)
-	fmt.Fprintf(&b, "[i] Icons        %s\n", iconMode)
-	b.WriteString("\nSegments\n")
+	fmt.Fprintf(&b, "%s %s\n", accentStyle.Render("[u]"), renderKeyValue("Display name", displayName))
+	fmt.Fprintf(&b, "%s %s\n", accentStyle.Render("[l]"), renderKeyValue("Layout", layout))
+	fmt.Fprintf(&b, "%s %s\n", accentStyle.Render("[o]"), renderKeyValue("Symbol", m.cfg.Prompt.Symbol))
+	fmt.Fprintf(&b, "%s %s\n", accentStyle.Render("[i]"), renderKeyValue("Icons", iconMode))
+	b.WriteString("\n")
+	b.WriteString(renderGroupLabel("Segments"))
+	b.WriteString("\n")
 	if len(m.cfg.Prompt.Order) == 0 {
 		b.WriteString("No segments configured.\n")
 	} else {
@@ -227,7 +228,7 @@ func (m Model) builder() string {
 			seg := m.cfg.Prompt.Segments[name]
 			prefix := "  "
 			if i == m.cursor {
-				prefix = "> "
+				prefix = accentStyle.Render(">") + " "
 			}
 			state := "[ ]"
 			if seg.Enabled {
@@ -243,22 +244,25 @@ func (m Model) builder() string {
 	if m.promptAdvanced && len(m.cfg.Prompt.Order) > 0 {
 		name := m.cfg.Prompt.Order[m.cursor]
 		segment := m.cfg.Prompt.Segments[name]
-		b.WriteString("\nAdvanced segment details\n")
+		b.WriteString("\n")
+		b.WriteString(renderGroupLabel("Advanced segment details"))
+		b.WriteString("\n")
 		fmt.Fprintf(&b, "Color %s · Bold %t · Compatible %q · Nerd %q\n", segment.FG, segment.Bold, segment.CompatibleIcon, segment.NerdIcon)
 	}
 	b.WriteString("\n")
-	b.WriteString(prompt.Simulated(m.previewConfig()))
+	b.WriteString(renderPreviewBox("Preview", prompt.Simulated(m.previewConfig()), m.contentWidth()))
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("space toggle · J/K reorder · v advanced"))
+	b.WriteString(renderHint("space toggle  ·  J/K reorder  ·  v advanced"))
 	return b.String()
 }
 
 func (m Model) preview() string {
 	m.syncPreviewInputs()
 	var b strings.Builder
-	b.WriteString("Preview\n")
-	b.WriteString(mutedStyle.Render("Scenarios · [/] switch"))
+	b.WriteString(renderSectionHeader("Preview", "Test prompt states before applying"))
 	b.WriteString("\n\n")
+	b.WriteString(renderGroupLabel("Scenarios"))
+	b.WriteString("\n")
 	for i, label := range previewScenarioLabels() {
 		if i > 0 {
 			if i == 3 {
@@ -277,24 +281,26 @@ func (m Model) preview() string {
 		b.WriteString("\n")
 		b.WriteString(accentStyle.Render("[Custom context]"))
 	}
-	b.WriteString("\n\nContext\n\n")
+	b.WriteString("\n\n")
+	b.WriteString(renderGroupLabel("Context"))
+	b.WriteString("\n")
 	for i := range m.inputs {
 		prefix := "  "
 		if i == m.inputFocus {
-			prefix = "> "
+			prefix = accentStyle.Render(">") + " "
 		}
 		b.WriteString(prefix)
 		b.WriteString(m.inputs[i].View())
 		b.WriteByte('\n')
 	}
 	b.WriteString("\n")
-	b.WriteString(prompt.SimulatedWithContext(m.previewConfig(), m.previewCtx))
+	b.WriteString(renderPreviewBox("Preview", prompt.SimulatedWithContext(m.previewConfig(), m.previewCtx), m.contentWidth()))
 	if m.previewError != "" {
 		b.WriteString("\n")
 		b.WriteString(errorStyle.Render(m.previewError))
 	}
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("[/] scenario · up/down field · type to customize"))
+	b.WriteString(renderHint("[/] scenario  ·  up/down field  ·  type to customize"))
 	return b.String()
 }
 
