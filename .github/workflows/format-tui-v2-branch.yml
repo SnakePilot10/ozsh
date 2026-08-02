@@ -1,0 +1,125 @@
+name: Format TUI v2 branch
+
+on:
+  push:
+    branches:
+      - feat/tui-v2-fonts-themes
+
+permissions:
+  contents: write
+
+jobs:
+  format-and-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: feat/tui-v2-fonts-themes
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.25.12'
+      - name: Apply compatibility corrections
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"expected text not found in {path}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace(
+              "internal/config/defaults.go",
+              '''\t\t\tSegments: map[string]SegmentConfig{
+          \t\t\t\t"user":    {Enabled: true, CompatibleIcon: "@", NerdIcon: "", FG: "cyan", Bold: true},
+          \t\t\t\t"cwd":     {Enabled: true, CompatibleIcon: ">", NerdIcon: "", FG: "yellow"},
+          \t\t\t\t"git":     {Enabled: true, CompatibleIcon: "git", NerdIcon: "", FG: "magenta"},
+          \t\t\t\t"status":  {Enabled: true, CompatibleIcon: "!", NerdIcon: "", FG: "red", Bold: true, ShowSuccess: false},
+          \t\t\t\t"time":    {Enabled: false, CompatibleIcon: ":", NerdIcon: "", FG: "blue"},
+          \t\t\t\t"host":    {Enabled: false, CompatibleIcon: "#", NerdIcon: "󰒋", FG: "cyan"},
+          \t\t\t\t"venv":    {Enabled: false, CompatibleIcon: "py", NerdIcon: "", FG: "green"},
+          \t\t\t\t"node":    {Enabled: false, CompatibleIcon: "node", NerdIcon: "", FG: "green"},
+          \t\t\t\t"go":      {Enabled: false, CompatibleIcon: "go", NerdIcon: "", FG: "cyan"},
+          \t\t\t\t"battery": {Enabled: false, CompatibleIcon: "%", NerdIcon: "", FG: "yellow"},
+          \t\t\t\t"jobs":    {Enabled: false, CompatibleIcon: "&", NerdIcon: "", FG: "magenta"},
+          \t\t\t},'''.replace("          ", ""),
+              '''\t\t\tSegments: map[string]SegmentConfig{
+          \t\t\t\t"user":    {Enabled: true, FG: "cyan", Bold: true},
+          \t\t\t\t"cwd":     {Enabled: true, FG: "yellow"},
+          \t\t\t\t"git":     {Enabled: true, FG: "magenta"},
+          \t\t\t\t"status":  {Enabled: true, FG: "red", Bold: true, ShowSuccess: false},
+          \t\t\t\t"time":    {Enabled: false, FG: "blue"},
+          \t\t\t\t"host":    {Enabled: false, FG: "cyan"},
+          \t\t\t\t"venv":    {Enabled: false, FG: "green"},
+          \t\t\t\t"node":    {Enabled: false, FG: "green"},
+          \t\t\t\t"go":      {Enabled: false, FG: "cyan"},
+          \t\t\t\t"battery": {Enabled: false, FG: "yellow"},
+          \t\t\t\t"jobs":    {Enabled: false, FG: "magenta"},
+          \t\t\t},'''.replace("          ", ""),
+          )
+
+          replace(
+              "internal/config/io_test.go",
+              'if !strings.Contains(string(data), "version = 1") {',
+              'if !strings.Contains(string(data), "version = 2") {',
+          )
+          replace(
+              "internal/config/io_test.go",
+              '''\tcfg.Prompt.Newline = false
+          \tcfg.Prompt.Segments["user"]'''.replace("          ", ""),
+              '''\tcfg.Prompt.Newline = false
+          \tcfg.Prompt.Layout = PromptLayoutOneLine
+          \tcfg.Prompt.Segments["user"]'''.replace("          ", ""),
+          )
+
+          replace(
+              "internal/tui/tui_v2_part1.go",
+              '''\ttabDashboard = tabHome
+          \ttabBuilder   = tabPrompt
+          )'''.replace("          ", ""),
+              '''\ttabDashboard = tabHome
+          \ttabBuilder   = tabPrompt
+          \ttabApply     = tabPreview
+          \ttabDoctor    = tabHome
+          )'''.replace("          ", ""),
+          )
+
+          replace(
+              "internal/prompt/generator_v2.go",
+              '''\tfmt.Fprintf(&b, "  local ozsh_symbol=\\\"$(ozsh_prompt_text %s)\\\"\\n", zshSingleQuote(cfg.Prompt.Symbol+" "))
+          \tif cfg.Prompt.Layout == config.PromptLayoutTwoLine {
+          \t\tb.WriteString("  PROMPT=\\\"$(ozsh_join \\\"$ozsh_separator\\\" \\\"${parts[@]}\\\")\\\"$'\\\\n'\\\"${ozsh_symbol}\\\"\\n")
+          \t} else {
+          \t\tb.WriteString("  PROMPT=\\\"$(ozsh_join \\\"$ozsh_separator\\\" \\\"${parts[@]}\\\") ${ozsh_symbol}\\\"\\n")
+          \t}'''.replace("          ", ""),
+              '''\tif cfg.Prompt.Layout == config.PromptLayoutTwoLine {
+          \t\tfmt.Fprintf(&b, "  PROMPT=\\\"$(ozsh_join \\\"$ozsh_separator\\\" \\\"${parts[@]}\\\")\\\"%s\\n", zshANSIQuote("\\n"+cfg.Prompt.Symbol+" "))
+          \t} else {
+          \t\tfmt.Fprintf(&b, "  PROMPT=\\\"$(ozsh_join \\\"$ozsh_separator\\\" \\\"${parts[@]}\\\")\\\"%s\\n", zshANSIQuote(" "+cfg.Prompt.Symbol+" "))
+          \t}'''.replace("          ", ""),
+          )
+          replace(
+              "internal/prompt/generator_v2.go",
+              '''func segmentEnabled(cfg *config.Config, name string) bool {''',
+              '''func zshANSIQuote(value string) string {
+          \treplacer := strings.NewReplacer("\\\\", "\\\\\\\\", "'", "\\\\'", "\\n", "\\\\n", "\\r", "\\\\r", "\\t", "\\\\t")
+          \treturn "$'" + replacer.Replace(value) + "'"
+          }
+
+          func segmentEnabled(cfg *config.Config, name string) bool {'''.replace("          ", ""),
+          )
+          PY
+      - name: Format Go files
+        run: gofmt -w $(find . -type f -name '*.go')
+      - name: Remove temporary workflow
+        run: rm .github/workflows/format-tui-v2-branch.yml
+      - name: Commit formatted corrections
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git diff --name-only -z | xargs -0 git add --
+          git commit -m 'fix: preserve compatibility and format TUI v2'
+          git push origin HEAD:feat/tui-v2-fonts-themes
