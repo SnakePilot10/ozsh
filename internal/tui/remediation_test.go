@@ -21,7 +21,7 @@ func TestTabAwareCursorClampsPerScreen(t *testing.T) {
 	}
 	model.cursor = 999
 	model.syncCursor()
-	if got, want := model.cursor, len(sortedThemeNames())-1; got != want {
+	if got, want := model.cursor, model.selectionCount()-1; got != want {
 		t.Fatalf("theme cursor = %d, want %d", got, want)
 	}
 	model.setTab(tabPlugins)
