@@ -10,21 +10,21 @@ import (
 const wideLayoutMinWidth = 72
 
 type layoutSpec struct {
-	terminalWidth         int
-	terminalHeight        int
-	contentWidth          int
-	contentHeight         int
-	workspaceWidth        int
-	workspaceHeight       int
+	terminalWidth          int
+	terminalHeight         int
+	contentWidth           int
+	contentHeight          int
+	workspaceWidth         int
+	workspaceHeight        int
 	workspaceContentHeight int
-	wide                  bool
-	short                 bool
+	wide                   bool
+	short                  bool
 }
 
 func (m Model) layout() layoutSpec {
 	terminalWidth := m.width
 	if terminalWidth <= 0 {
-		terminalWidth = 82
+		terminalWidth = 78
 	}
 	terminalHeight := m.height
 	if terminalHeight <= 0 {
@@ -116,6 +116,8 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 		return m.backupDialog()
 	case m.confirmPlugins:
 		return m.pluginInstallConfirmation()
+	case m.confirmApply && m.showApplyTechnical && m.reviewedConfig != nil:
+		return m.technicalApplyWorkspace()
 	case m.confirmApply || m.busy:
 		return m.apply()
 	case m.doctorOpen:
