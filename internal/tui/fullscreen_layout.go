@@ -9,13 +9,13 @@ import (
 const wideLayoutMinWidth = 72
 
 type layoutSpec struct {
-	terminalWidth  int
-	terminalHeight int
-	contentWidth   int
-	contentHeight  int
+	terminalWidth   int
+	terminalHeight  int
+	contentWidth    int
+	contentHeight   int
 	workspaceHeight int
-	wide           bool
-	short          bool
+	wide            bool
+	short           bool
 }
 
 func (m Model) layout() layoutSpec {
@@ -49,18 +49,17 @@ func (m Model) layout() layoutSpec {
 	}
 
 	return layoutSpec{
-		terminalWidth:  terminalWidth,
-		terminalHeight: terminalHeight,
-		contentWidth:   contentWidth,
-		contentHeight:  contentHeight,
+		terminalWidth:   terminalWidth,
+		terminalHeight:  terminalHeight,
+		contentWidth:    contentWidth,
+		contentHeight:   contentHeight,
 		workspaceHeight: workspaceHeight,
-		wide:           contentWidth >= wideLayoutMinWidth,
-		short:          contentHeight < 22,
+		wide:            contentWidth >= wideLayoutMinWidth,
+		short:           contentHeight < 22,
 	}
 }
 
 func (m Model) workspaceContent(spec layoutSpec) string {
-	_ = spec
 	switch {
 	case m.busy && m.operation == "plugins":
 		return "Installing plugins…\n\nCloning and validating the selected repositories."
@@ -86,7 +85,7 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 	case tabHome:
 		return m.home()
 	case tabPrompt:
-		return m.builder()
+		return m.promptWorkspace(spec)
 	case tabThemes:
 		return m.themes()
 	case tabPlugins:
