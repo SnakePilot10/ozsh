@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const wideLayoutMinWidth = 72
@@ -21,7 +22,7 @@ type layoutSpec struct {
 func (m Model) layout() layoutSpec {
 	terminalWidth := m.width
 	if terminalWidth <= 0 {
-		terminalWidth = 80
+		terminalWidth = 76 + panelStyle.GetHorizontalFrameSize()
 	}
 	terminalHeight := m.height
 	if terminalHeight <= 0 {
@@ -115,7 +116,7 @@ func screenFooter(tab int) string {
 }
 
 func composeFullscreen(header, body, status, footer string, spec layoutSpec) string {
-	header = fitBlock(header, spec.contentWidth)
+	header = truncateBlock(header, spec.contentWidth)
 	body = padBlock(body, spec.contentWidth, spec.workspaceHeight)
 	footer = fitHeight(footer, spec.contentWidth, 1)
 
@@ -146,10 +147,23 @@ func fitHeight(value string, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
-	value = fitBlock(value, width)
+	value = truncateBlock(value, width)
 	lines := strings.Split(value, "\n")
 	if len(lines) > height {
 		lines = lines[:height]
+	}
+	return strings.Join(lines, "\n")
+}
+
+func truncateBlock(value string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	lines := strings.Split(value, "\n")
+	for i, line := range lines {
+		if ansi.StringWidth(line) > width {
+			lines[i] = ansi.Truncate(line, width, "")
+		}
 	}
 	return strings.Join(lines, "\n")
 }
