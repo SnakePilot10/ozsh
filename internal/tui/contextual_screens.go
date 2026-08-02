@@ -188,7 +188,7 @@ func themePaletteLines(preset themecatalog.Preset) string {
 func (m Model) pluginsWorkspace(spec layoutSpec) string {
 	catalog := plugins.Catalog()
 	var body strings.Builder
-	body.WriteString(renderSectionHeader("Plugins", "Curated completion and editing helpers"))
+	body.WriteString(renderSectionHeader("Plugins", "Recommended setup · Curated completion and editing helpers"))
 	body.WriteString("\n\n")
 	list := m.pluginLibraryPanel(catalog)
 	details := m.selectedPluginPanel(catalog)
@@ -228,10 +228,9 @@ func (m Model) pluginLibraryPanel(catalog []plugins.Definition) string {
 		if status.Selected {
 			check = "[x]"
 		}
-		state := pluginStateLabel(status)
-		row := fmt.Sprintf("%s %-18s %s", check, definition.Name, state)
+		row := fmt.Sprintf("%s %s  %s", check, definition.Name, pluginStateMarker(status))
 		if i == m.cursor {
-			row = selectedRowStyle.Render("› " + row)
+			row = selectedRowStyle.Copy().Padding(0).Render("› " + row)
 		} else {
 			row = "  " + row
 		}
@@ -241,6 +240,21 @@ func (m Model) pluginLibraryPanel(catalog []plugins.Definition) string {
 		}
 	}
 	return b.String()
+}
+
+func pluginStateMarker(status plugins.Status) string {
+	switch {
+	case status.Active:
+		return stateOnStyle.Render("✓")
+	case status.Installed && !status.Healthy:
+		return errorStyle.Render("!")
+	case status.Installed && !status.Trusted:
+		return errorStyle.Render("?")
+	case status.Installed:
+		return renderHint("○")
+	default:
+		return renderHint("·")
+	}
 }
 
 func (m Model) selectedPluginPanel(catalog []plugins.Definition) string {
