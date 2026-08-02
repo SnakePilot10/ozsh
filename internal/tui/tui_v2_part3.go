@@ -17,7 +17,15 @@ func (m Model) themes() string {
 	presets := themecatalog.List()
 	var b strings.Builder
 	b.WriteString("Theme gallery\n")
-	b.WriteString(mutedStyle.Render("12 complete prompt styles"))
+	fmt.Fprintf(&b, "%s\n", mutedStyle.Render(fmt.Sprintf("%d families · %d selectable presets", len(themecatalog.Families()), len(presets))))
+	b.WriteString("Circuit variants  ")
+	variantNames := make([]string, 0, len(themecatalog.Variants("circuit")))
+	for _, variant := range themecatalog.Variants("circuit") {
+		if preset, ok := themecatalog.Get("circuit", variant); ok {
+			variantNames = append(variantNames, preset.Name)
+		}
+	}
+	b.WriteString(mutedStyle.Render(strings.Join(variantNames, " · ")))
 	b.WriteString("\n\n")
 	if len(presets) == 0 {
 		return "Theme gallery\n\nNo presets available."
@@ -34,10 +42,10 @@ func (m Model) themes() string {
 			prefix = "> "
 		}
 		applied := " "
-		if m.cfg.Theme.ID == preset.ID {
+		if m.cfg.Theme.ID == preset.ID && m.cfg.Theme.Variant == preset.Variant {
 			applied = "✓"
 		}
-		fmt.Fprintf(&b, "%s%s %-12s %s\n", prefix, applied, preset.Name, preset.Description)
+		fmt.Fprintf(&b, "%s%s %-15s %s\n", prefix, applied, preset.Name, preset.Description)
 	}
 	if end < len(presets) {
 		b.WriteString(mutedStyle.Render("  ↓ more"))
@@ -50,8 +58,8 @@ func (m Model) themes() string {
 	}
 	b.WriteString("\n")
 	b.WriteString(accentStyle.Render(selected.Name))
-	if selected.ID == "circuit" {
-		fmt.Fprintf(&b, "  %s", mutedStyle.Render(fmt.Sprintf("Variant %d/%d · [/] change", m.themeVariant+1, len(themecatalog.Variants("circuit")))))
+	if selected.Variant != "" {
+		fmt.Fprintf(&b, "  %s", mutedStyle.Render("variant: "+selected.Variant))
 	}
 	b.WriteString("\n")
 	b.WriteString(selected.Description)
@@ -60,7 +68,7 @@ func (m Model) themes() string {
 	b.WriteString("\n")
 	b.WriteString(prompt.Simulated(themecatalog.Apply(m.cfg, selected)))
 	b.WriteString("\n\n")
-	b.WriteString(mutedStyle.Render("enter apply · [/] variant · c save custom"))
+	b.WriteString(mutedStyle.Render("up/down choose · enter apply · [/] jump Circuit variants · c save custom"))
 	return b.String()
 }
 
