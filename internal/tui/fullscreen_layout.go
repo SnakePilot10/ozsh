@@ -10,15 +10,15 @@ import (
 const wideLayoutMinWidth = 72
 
 type layoutSpec struct {
-	terminalWidth    int
-	terminalHeight   int
-	contentWidth     int
-	contentHeight    int
-	workspaceWidth   int
-	workspaceHeight  int
+	terminalWidth         int
+	terminalHeight        int
+	contentWidth          int
+	contentHeight         int
+	workspaceWidth        int
+	workspaceHeight       int
 	workspaceContentHeight int
-	wide             bool
-	short            bool
+	wide                  bool
+	short                 bool
 }
 
 func (m Model) layout() layoutSpec {
@@ -54,14 +54,46 @@ func (m Model) layout() layoutSpec {
 	return layoutSpec{
 		terminalWidth:          terminalWidth,
 		terminalHeight:         terminalHeight,
-		contentWidth:           terminalWidth,
-		contentHeight:          terminalHeight,
+		contentWidth:           terminalWidth - horizontalBorderSize(panelStyle),
+		contentHeight:          terminalHeight - verticalBorderSize(panelStyle),
 		workspaceWidth:         workspaceWidth,
 		workspaceHeight:        workspaceHeight,
 		workspaceContentHeight: workspaceContentHeight,
 		wide:                   workspaceWidth >= wideLayoutMinWidth,
 		short:                  workspaceContentHeight < 22,
 	}
+}
+
+func horizontalBorderSize(style lipgloss.Style) int {
+	border, _, right, _, left := style.GetBorder()
+	size := 0
+	if left {
+		size += border.GetLeftSize()
+	}
+	if right {
+		size += border.GetRightSize()
+	}
+	return size
+}
+
+func verticalBorderSize(style lipgloss.Style) int {
+	border, top, _, bottom, _ := style.GetBorder()
+	size := 0
+	if top {
+		size += border.GetTopSize()
+	}
+	if bottom {
+		size += border.GetBottomSize()
+	}
+	return size
+}
+
+func totalWidthStyle(style lipgloss.Style, total int) lipgloss.Style {
+	width := total - horizontalBorderSize(style)
+	if width < 1 {
+		width = 1
+	}
+	return style.Width(width)
 }
 
 func (m Model) workspaceContent(spec layoutSpec) string {
