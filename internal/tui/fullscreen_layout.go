@@ -132,10 +132,17 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 		return m.doctor()
 	}
 
+	ultraCompact := spec.workspaceWidth < 20 || spec.workspaceHeight < 8
 	switch m.tab {
 	case tabHome:
+		if ultraCompact {
+			return m.home()
+		}
 		return m.homeWorkspace(viewSpec)
 	case tabPrompt:
+		if ultraCompact {
+			return m.builder()
+		}
 		return m.promptWorkspace(viewSpec)
 	case tabThemes:
 		return m.themesWorkspace(viewSpec)
