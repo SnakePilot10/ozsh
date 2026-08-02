@@ -43,6 +43,7 @@ func cloneConfig(cfg *config.Config) *config.Config {
 	for key, value := range cfg.Prompt.Segments {
 		clone.Prompt.Segments[key] = value
 	}
+	clone.Plugins.Selected = append([]string(nil), cfg.Plugins.Selected...)
 	clone.Plugins.Items = append([]config.PluginItem(nil), cfg.Plugins.Items...)
 	return &clone
 }

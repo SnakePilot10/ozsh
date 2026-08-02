@@ -3,15 +3,14 @@ package prompt
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/snakepilot10/ozsh/internal/config"
 )
 
-// Generate renders a prompt from an isolated copy of cfg. Generation fills in
-// legacy defaults, so mutating the caller's active TUI/config state here would
-// create hard-to-reproduce side effects after preview or apply operations.
+// Generate renders a prompt from an isolated copy of cfg.
 func Generate(cfg *config.Config) (string, error) {
 	cfg = cloneConfig(cfg)
 	if err := config.Validate(cfg); err != nil {
@@ -153,25 +152,24 @@ ozsh_backtick='` + "`" + `'
 		if !ok || !segmentActive(cfg, name, seg) {
 			continue
 		}
-		genSegment(&b, "parts", name, seg)
+		genSegment(&b, "parts", name, cfg.Prompt, seg)
 	}
 	for _, name := range cfg.Prompt.RightOrder {
 		seg, ok := cfg.Prompt.Segments[name]
 		if !ok || !segmentActive(cfg, name, seg) {
 			continue
 		}
-		genSegment(&b, "right_parts", name, seg)
+		genSegment(&b, "right_parts", name, cfg.Prompt, seg)
 	}
 
 	b.WriteString("\n")
-	sep := zshSingleQuote(cfg.Prompt.Separator)
-	fmt.Fprintf(&b, "  local ozsh_raw_separator=%s\n", sep)
+	fmt.Fprintf(&b, "  local ozsh_raw_separator=%s\n", zshSingleQuote(cfg.Prompt.Separator))
 	b.WriteString("  local ozsh_separator\n")
 	b.WriteString("  ozsh_separator=\"$(ozsh_prompt_text \"$ozsh_raw_separator\")\"\n")
-	if cfg.Prompt.Newline {
-		b.WriteString("  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"$'\\n❯ '\n")
+	if cfg.Prompt.Layout == config.PromptLayoutTwoLine {
+		fmt.Fprintf(&b, "  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"%s\n", zshANSIQuote("\n"+cfg.Prompt.Symbol+" "))
 	} else {
-		b.WriteString("  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\") ❯ \"\n")
+		fmt.Fprintf(&b, "  PROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${parts[@]}\")\"%s\n", zshANSIQuote(" "+cfg.Prompt.Symbol+" "))
 	}
 	if cfg.Prompt.RightPrompt || len(cfg.Prompt.RightOrder) > 0 {
 		b.WriteString("  RPROMPT=\"$(ozsh_join \"$ozsh_separator\" \"${right_parts[@]}\")\"\n")
@@ -193,23 +191,31 @@ func cloneConfig(cfg *config.Config) *config.Config {
 	for name, segment := range cfg.Prompt.Segments {
 		clone.Prompt.Segments[name] = segment
 	}
+	clone.Plugins.Selected = append([]string(nil), cfg.Plugins.Selected...)
 	clone.Plugins.Items = append([]config.PluginItem(nil), cfg.Plugins.Items...)
 	return &clone
 }
 
-func genSegment(b *strings.Builder, target, name string, cfg config.SegmentConfig) {
+func genSegment(b *strings.Builder, target, name string, promptConfig config.PromptConfig, cfg config.SegmentConfig) {
 	open := styleOpen(cfg)
 	close := styleClose(cfg)
 	prefix := ""
-	if cfg.Icon != "" {
+	if icon := segmentIcon(promptConfig, cfg); icon != "" {
 		iconVar := "ozsh_icon_" + target + "_" + name
 		fmt.Fprintf(b, "  local %s\n", iconVar)
-		fmt.Fprintf(b, "  %s=\"$(ozsh_prompt_text %s)\"\n", iconVar, zshSingleQuote(cfg.Icon))
+		fmt.Fprintf(b, "  %s=\"$(ozsh_prompt_text %s)\"\n", iconVar, zshSingleQuote(icon))
 		prefix = "${" + iconVar + "} "
 	}
 	switch name {
 	case "user":
-		fmt.Fprintf(b, "  %s+=(\"%s%s%%n%s\")\n", target, open, prefix, close)
+		if promptConfig.DisplayName == "" {
+			fmt.Fprintf(b, "  %s+=(\"%s%s%%n%s\")\n", target, open, prefix, close)
+		} else {
+			nameVar := "ozsh_display_name_" + target
+			fmt.Fprintf(b, "  local %s\n", nameVar)
+			fmt.Fprintf(b, "  %s=\"$(ozsh_prompt_text %s)\"\n", nameVar, zshSingleQuote(promptConfig.DisplayName))
+			fmt.Fprintf(b, "  %s+=(\"%s%s${%s}%s\")\n", target, open, prefix, nameVar, close)
+		}
 	case "cwd":
 		fmt.Fprintf(b, "  %s+=(\"%s%s%%~%s\")\n", target, open, prefix, close)
 	case "git":
@@ -265,9 +271,24 @@ func genSegment(b *strings.Builder, target, name string, cfg config.SegmentConfi
 	}
 }
 
+func segmentIcon(promptConfig config.PromptConfig, segment config.SegmentConfig) string {
+	if promptConfig.IconMode == config.IconModeNerd && segment.NerdIcon != "" {
+		return segment.NerdIcon
+	}
+	if segment.CompatibleIcon != "" {
+		return segment.CompatibleIcon
+	}
+	return segment.Icon
+}
+
 func genPluginSources(b *strings.Builder, cfg *config.Config) {
+	plugins := append([]config.PluginItem(nil), cfg.Plugins.Items...)
+	sort.SliceStable(plugins, func(i, j int) bool {
+		return pluginPriority(plugins[i].Name) < pluginPriority(plugins[j].Name)
+	})
 	helperWritten := false
-	for _, plugin := range cfg.Plugins.Items {
+	completionWritten := false
+	for _, plugin := range plugins {
 		if !plugin.Enabled || !plugin.Trusted {
 			continue
 		}
@@ -291,6 +312,10 @@ func genPluginSources(b *strings.Builder, cfg *config.Config) {
 			b.WriteString("\n")
 			helperWritten = true
 		}
+		if plugin.Name == "fzf-tab" && !completionWritten {
+			b.WriteString("autoload -Uz compinit && compinit\n")
+			completionWritten = true
+		}
 		fmt.Fprintf(b, "ozsh_source_plugin %s\n", zshSingleQuote(source))
 	}
 	if helperWritten {
@@ -298,8 +323,19 @@ func genPluginSources(b *strings.Builder, cfg *config.Config) {
 	}
 }
 
-// pluginSourcePath never returns a plugin directory. A shell can only source a
-// concrete, relative .zsh/.sh file under the plugin root.
+func pluginPriority(name string) int {
+	switch name {
+	case "zsh-autosuggestions":
+		return 0
+	case "fzf-tab":
+		return 1
+	case "zsh-syntax-highlighting":
+		return 3
+	default:
+		return 2
+	}
+}
+
 func pluginSourcePath(plugin config.PluginItem) (string, bool) {
 	load := strings.TrimSpace(plugin.Load)
 	if load == "" || filepath.IsAbs(load) {
@@ -321,6 +357,11 @@ func zshSingleQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func zshANSIQuote(value string) string {
+	replacer := strings.NewReplacer("\\", "\\\\", "'", "\\'", "\n", "\\n", "\r", "\\r", "\t", "\\t")
+	return "$'" + replacer.Replace(value) + "'"
 }
 
 func segmentEnabled(cfg *config.Config, name string) bool {

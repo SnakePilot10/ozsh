@@ -78,7 +78,8 @@ func decodeFile(path string) (*Config, bool, error) {
 	if undecoded := metadata.Undecoded(); len(undecoded) > 0 {
 		return nil, false, fmt.Errorf("unknown config key %q", undecoded[0].String())
 	}
-	legacy := cfg.Version == 0
+	sourceVersion := cfg.Version
+	legacy := sourceVersion < CurrentConfigVersion
 	if err := Validate(&cfg); err != nil {
 		return nil, false, fmt.Errorf("invalid config: %w", err)
 	}

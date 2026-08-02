@@ -31,14 +31,14 @@ func TestApplyRequiresConfirmation(t *testing.T) {
 	if strings.Contains(readFile(t, shell.ZshrcPath()), "ozsh") {
 		t.Fatal("Apply modified .zshrc before confirmation")
 	}
-	if !strings.Contains(model.apply(), "press y to confirm") {
+	if !strings.Contains(model.apply(), "Press y to apply") {
 		t.Fatalf("Apply view missing confirmation prompt:\n%s", model.apply())
 	}
 }
 
 func TestPreviewContextIsEditable(t *testing.T) {
 	model := NewModel(config.Default())
-	model.tab = 2
+	model.setTab(tabPreview)
 	model.inputs[0].SetValue("pilot")
 	model.inputs[1].SetValue("~/ship")
 	model.inputs[2].SetValue("feature")
@@ -69,7 +69,7 @@ func TestThemeAndPluginControls(t *testing.T) {
 	}
 	model := NewModel(cfg)
 
-	model.tab = 5
+	model.setTab(tabThemes)
 	model.cursor = 0
 	model.applyThemeAtCursor()
 	if model.cfg.Theme.Name == "" {
@@ -77,7 +77,8 @@ func TestThemeAndPluginControls(t *testing.T) {
 	}
 
 	model.tab = tabPlugins
-	model.cursor = 0
+	model.pluginAdvanced = true
+	model.cursor = len(model.cfg.Plugins.Selected)
 	model.togglePluginAtCursor()
 	model.trustPluginAtCursor()
 	if !model.cfg.Plugins.Items[0].Enabled || !model.cfg.Plugins.Items[0].Trusted {
@@ -94,7 +95,8 @@ func TestPluginTrustControlRejectsUnsafeLoadFile(t *testing.T) {
 	}
 	model := NewModel(cfg)
 	model.tab = tabPlugins
-	model.cursor = 0
+	model.pluginAdvanced = true
+	model.cursor = len(model.cfg.Plugins.Selected)
 
 	model.trustPluginAtCursor()
 
@@ -152,7 +154,7 @@ func TestBuilderToggleAndReorderSegments(t *testing.T) {
 
 func TestPreviewInputFocusCyclesAndSanitizesValues(t *testing.T) {
 	model := NewModel(config.Default())
-	model.tab = 2
+	model.setTab(tabPreview)
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = updated.(Model)
@@ -174,7 +176,7 @@ func TestPreviewInputFocusCyclesAndSanitizesValues(t *testing.T) {
 func TestThemeControlsStoreCustom(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	model := NewModel(config.Default())
-	model.tab = 5
+	model.setTab(tabThemes)
 
 	model.saveCustomTheme()
 	if model.cfg.Theme.Name != "custom" || !strings.Contains(model.msg, "custom") {
@@ -209,7 +211,7 @@ func TestPreviewThemeConfigDoesNotMutateBaseConfig(t *testing.T) {
 	cfg.Prompt.Segments["user"] = config.SegmentConfig{Enabled: true, FG: "cyan"}
 	model := NewModel(cfg)
 
-	previewCfg := model.previewThemeConfig("neon-red")
+	previewCfg := model.previewThemeConfig("dracula")
 	if previewCfg.Prompt.Segments["user"].FG == model.cfg.Prompt.Segments["user"].FG {
 		t.Fatalf("preview theme user fg = %q, want distinct themed color", previewCfg.Prompt.Segments["user"].FG)
 	}
@@ -228,7 +230,8 @@ func TestPluginControlsUntrustAndRejectEmptyAddForm(t *testing.T) {
 	}
 	model := NewModel(cfg)
 	model.tab = tabPlugins
-	model.cursor = 0
+	model.pluginAdvanced = true
+	model.cursor = len(model.cfg.Plugins.Selected)
 
 	model.untrustPluginAtCursor()
 	if model.cfg.Plugins.Items[0].Trusted {
@@ -287,13 +290,11 @@ func TestViewsRenderAllTabs(t *testing.T) {
 		tab  int
 		want string
 	}{
-		{tab: 0, want: "config:"},
-		{tab: 1, want: "segments"},
-		{tab: 2, want: "context"},
-		{tab: 3, want: "planned .zshrc diff"},
-		{tab: 4, want: "press enter to fix"},
-		{tab: 5, want: "theme gallery"},
-		{tab: 6, want: "plugins"},
+		{tab: tabHome, want: "Welcome"},
+		{tab: tabPrompt, want: "Segments"},
+		{tab: tabThemes, want: "Theme gallery"},
+		{tab: tabPlugins, want: "Recommended setup"},
+		{tab: tabPreview, want: "Context"},
 	} {
 		model.tab = tc.tab
 		view := model.View()
@@ -309,7 +310,7 @@ func TestDoctorFixCreatesMissingFiles(t *testing.T) {
 	model := NewModel(config.Default())
 
 	msg := model.fixDoctor()
-	if !strings.Contains(msg, "open Apply tab") {
+	if !strings.Contains(msg, "Review & Apply") {
 		t.Fatalf("fixDoctor() = %q, want apply guidance", msg)
 	}
 	if _, err := os.Stat(config.Path()); err != nil {
@@ -323,6 +324,8 @@ func TestDoctorFixCreatesMissingFiles(t *testing.T) {
 func TestPluginInputsUpdateURLField(t *testing.T) {
 	model := NewModel(config.Default())
 	model.tab = tabPlugins
+	model.pluginAdvanced = true
+	model.focusPluginInput()
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	model = updated.(Model)
@@ -335,6 +338,8 @@ func TestPluginInputsUpdateURLField(t *testing.T) {
 func TestPluginInputsAllowBackspaceInURLAndLoad(t *testing.T) {
 	model := NewModel(config.Default())
 	model.tab = tabPlugins
+	model.pluginAdvanced = true
+	model.focusPluginInput()
 	model.pluginURL.SetValue("https://example.com/x")
 	model.pluginURL.SetCursor(len(model.pluginURL.Value()))
 
@@ -361,21 +366,21 @@ func TestTabNavigationWorksFromPreviewAndBuilder(t *testing.T) {
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
-	if model.tab != tabApply {
-		t.Fatalf("preview tab navigation = %d, want apply tab", model.tab)
+	if model.tab != tabHome {
+		t.Fatalf("preview tab navigation = %d, want home tab", model.tab)
 	}
 
 	model.setTab(tabBuilder)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
-	if model.tab != tabPreview {
-		t.Fatalf("builder tab navigation = %d, want preview tab", model.tab)
+	if model.tab != tabThemes {
+		t.Fatalf("builder tab navigation = %d, want themes tab", model.tab)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRight})
 	model = updated.(Model)
-	if model.tab != tabApply {
-		t.Fatalf("preview right navigation = %d, want apply tab", model.tab)
+	if model.tab != tabPlugins {
+		t.Fatalf("themes right navigation = %d, want plugins tab", model.tab)
 	}
 }
 
@@ -385,18 +390,20 @@ func TestPluginNavigationWorksWhileKeepingNumericURLInput(t *testing.T) {
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
 	model = updated.(Model)
-	if model.tab != tabDashboard {
-		t.Fatalf("plugin right navigation = %d, want dashboard tab", model.tab)
+	if model.tab != tabPreview {
+		t.Fatalf("plugin right navigation = %d, want preview tab", model.tab)
 	}
 
 	model.setTab(tabPlugins)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
 	model = updated.(Model)
-	if model.tab != tabBuilder || model.pluginURL.Value() != "" {
-		t.Fatalf("empty plugin numeric navigation tab=%d url=%q, want builder tab and empty url", model.tab, model.pluginURL.Value())
+	if model.tab != tabPrompt || model.pluginURL.Value() != "" {
+		t.Fatalf("empty plugin numeric navigation tab=%d url=%q, want prompt tab and empty url", model.tab, model.pluginURL.Value())
 	}
 
 	model.setTab(tabPlugins)
+	model.pluginAdvanced = true
+	model.focusPluginInput()
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})

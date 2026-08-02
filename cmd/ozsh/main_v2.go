@@ -17,6 +17,7 @@ import (
 	"github.com/snakepilot10/ozsh/internal/plugins"
 	"github.com/snakepilot10/ozsh/internal/prompt"
 	"github.com/snakepilot10/ozsh/internal/shell"
+	themecatalog "github.com/snakepilot10/ozsh/internal/themes"
 	"github.com/snakepilot10/ozsh/internal/tui"
 )
 
@@ -493,29 +494,48 @@ func runReset() {
 
 func runTheme(args []string) {
 	if len(args) == 0 {
-		fmt.Println("Usage: ozsh theme <list|apply|preview>")
+		fmt.Println("Usage: ozsh theme <list|apply|preview> [name] [--variant name]")
 		os.Exit(1)
 	}
 	switch args[0] {
 	case "list":
-		for _, name := range sortedThemeNames() {
-			fmt.Println(name)
-		}
-	case "apply", "preview":
-		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "theme %s requires a name\n", args[0])
+		if len(args) != 1 {
+			fmt.Fprintln(os.Stderr, "Usage: ozsh theme list")
 			os.Exit(1)
 		}
-		preset, ok := config.Presets[args[1]]
-		if !ok {
-			fmt.Fprintf(os.Stderr, "unknown theme: %s\n", args[1])
+		for _, name := range sortedThemeNames() {
+			fmt.Println(name)
+			if variants := themecatalog.Variants(name); len(variants) > 0 {
+				fmt.Printf("  variants: %s\n", strings.Join(variants, ", "))
+			}
+		}
+	case "apply", "preview":
+		name, variant, err := parseThemeSelection(args[1:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "theme %s error: %v\n", args[0], err)
 			os.Exit(1)
 		}
 		cfg, err := config.Load()
 		if err != nil {
 			exitConfigError(err)
 		}
-		applyTheme(cfg, preset)
+		label := name
+		if preset, ok := themecatalog.Get(name, variant); ok {
+			cfg = themecatalog.Apply(cfg, preset)
+			label = preset.ID
+			if preset.Variant != "" {
+				label += " (" + preset.Variant + ")"
+			}
+		} else if legacy, ok := config.Presets[name]; ok && variant == "" {
+			applyTheme(cfg, legacy)
+		} else {
+			if variant == "" {
+				fmt.Fprintf(os.Stderr, "unknown theme: %s\n", name)
+			} else {
+				fmt.Fprintf(os.Stderr, "unknown theme variant: %s/%s\n", name, variant)
+			}
+			os.Exit(1)
+		}
 		if args[0] == "preview" {
 			fmt.Println(prompt.Simulated(cfg))
 			return
@@ -523,11 +543,35 @@ func runTheme(args []string) {
 		if err := config.Save(cfg); err != nil {
 			exitConfigError(err)
 		}
-		fmt.Printf("✓ theme applied: %s\n", preset.Name)
+		fmt.Printf("✓ theme applied: %s\n", label)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown theme command: %s\n", args[0])
 		os.Exit(1)
 	}
+}
+
+func parseThemeSelection(args []string) (string, string, error) {
+	if len(args) == 0 {
+		return "", "", fmt.Errorf("requires a name")
+	}
+	name := args[0]
+	variant := ""
+	for index := 1; index < len(args); index++ {
+		switch args[index] {
+		case "--variant":
+			index++
+			if index >= len(args) || strings.TrimSpace(args[index]) == "" {
+				return "", "", fmt.Errorf("--variant requires a value")
+			}
+			if variant != "" {
+				return "", "", fmt.Errorf("--variant may be specified only once")
+			}
+			variant = args[index]
+		default:
+			return "", "", fmt.Errorf("unexpected argument %q", args[index])
+		}
+	}
+	return name, variant, nil
 }
 
 func applyTheme(cfg *config.Config, preset config.ThemeConfig) {
@@ -650,8 +694,20 @@ func suggestCommand(input string) string {
 }
 
 func sortedThemeNames() []string {
-	names := make([]string, 0, len(config.Presets))
+	seen := map[string]struct{}{}
+	names := make([]string, 0, len(themecatalog.List())+len(config.Presets))
+	for _, preset := range themecatalog.List() {
+		if _, ok := seen[preset.ID]; ok {
+			continue
+		}
+		seen[preset.ID] = struct{}{}
+		names = append(names, preset.ID)
+	}
 	for name := range config.Presets {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
 		names = append(names, name)
 	}
 	sort.Strings(names)

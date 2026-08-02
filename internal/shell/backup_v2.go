@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -89,4 +90,55 @@ func Backups() ([]string, error) {
 	}
 	sort.Strings(backups)
 	return backups, nil
+}
+
+// RestoreBackup atomically replaces the resolved .zshrc target with one of the
+// regular backup files owned by ozsh. The current target is backed up first.
+func RestoreBackup(path string) error {
+	root := filepath.Clean(BackupsDir())
+	if root == "." || root == "" {
+		return fmt.Errorf("cannot determine HOME")
+	}
+	selected, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return fmt.Errorf("resolve backup path: %w", err)
+	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("resolve backup directory: %w", err)
+	}
+	if selected == rootAbs || !strings.HasPrefix(selected, rootAbs+string(filepath.Separator)) {
+		return fmt.Errorf("backup path must stay inside %s", rootAbs)
+	}
+	info, err := os.Lstat(selected)
+	if err != nil {
+		return fmt.Errorf("inspect backup: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return fmt.Errorf("backup must be a regular file")
+	}
+	data, err := os.ReadFile(selected)
+	if err != nil {
+		return fmt.Errorf("read backup: %w", err)
+	}
+	_, target, err := ResolveZshrcTarget()
+	if err != nil {
+		return err
+	}
+	mode := os.FileMode(0o600)
+	if targetInfo, statErr := os.Stat(target); statErr == nil {
+		if !targetInfo.Mode().IsRegular() {
+			return fmt.Errorf(".zshrc target must be a regular file")
+		}
+		mode = targetInfo.Mode().Perm()
+		if _, err := Backup(); err != nil {
+			return fmt.Errorf("preserve current .zshrc: %w", err)
+		}
+	} else if !os.IsNotExist(statErr) {
+		return fmt.Errorf("inspect .zshrc target: %w", statErr)
+	}
+	if err := atomicWrite(target, data, mode); err != nil {
+		return fmt.Errorf("restore .zshrc backup: %w", err)
+	}
+	return nil
 }
