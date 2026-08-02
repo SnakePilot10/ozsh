@@ -11,6 +11,7 @@
 - Hardened `HOME` handling, plugin removal/trust, TUI persistence, backups, and prompt escaping.
 - Added static release builds, reproducible CI tooling, AUR integrity checks, and Sigstore bundles.
 - Removed the incomplete prompt-template path; legacy `omega` style configs migrate to the complete generator.
+- Completed the responsive Charmbracelet TUI with filterable lists, safe async operations, segment editing, accessible themes, conflict-aware Apply, and comprehensive regression coverage.
 
 ## v0.2.0
 

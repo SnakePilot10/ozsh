@@ -148,6 +148,24 @@ before running `ozsh plugin trust <name>`.
 preview, apply, doctor, themes, and plugins views. The apply flow shows the
 planned `.zshrc` diff and requires confirmation before writing.
 
+Key controls:
+
+| Keys | Action |
+| --- | --- |
+| `Tab` / `Shift+Tab`, `1`-`7` | Change view |
+| `Up` / `Down`, `j` / `k` | Move through lists and fields |
+| `/`, `PgUp` / `PgDn` | Filter and page lists |
+| `F1` / `?` | Toggle contextual help |
+| `s`, `d` | Save or discard Builder changes |
+| `e` | Edit the selected prompt segment |
+| `p`, `t`, `u` | Add, trust, or untrust a plugin |
+| `a`, then `y` | Review and confirm Apply |
+| `q` / `Ctrl+C` | Quit / force quit |
+
+Printable keys belong to the focused input while editing. `Esc` cancels a form
+or confirmation. Trusting a plugin always requires a second explicit
+confirmation that shows its source and load path.
+
 ## Termux
 
 Termux is detected through `TERMUX_VERSION` or `PREFIX`. The installer can use

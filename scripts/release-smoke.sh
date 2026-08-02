@@ -12,8 +12,8 @@ mkdir -p "$HOME_DIR"
 printf 'export EDITOR=vim\n' > "$HOME_DIR/.zshrc"
 
 echo "[smoke] build"
-GOCACHE="${GOCACHE:-/tmp/ozsh-go-build}" \
-GOMODCACHE="${GOMODCACHE:-/tmp/ozsh-gomod}" \
+GOCACHE="${GOCACHE:-${TMPDIR:-/tmp}/ozsh-go-build}" \
+GOMODCACHE="${GOMODCACHE:-${TMPDIR:-/tmp}/ozsh-gomod}" \
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w -X main.version=$VERSION" -o "$BIN" "$ROOT/cmd/ozsh"
 
 echo "[smoke] version"

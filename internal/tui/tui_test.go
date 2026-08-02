@@ -22,14 +22,19 @@ func TestApplyRequiresConfirmation(t *testing.T) {
 
 	model := NewModel(config.Default())
 	model.tab = 3
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	model = updated.(Model)
 
-	if !model.confirmApply {
-		t.Fatal("Apply did not enter confirmation state")
+	if model.operation != operationApplyPreview || cmd == nil {
+		t.Fatalf("Apply operation = %v cmd nil=%t, want asynchronous preview", model.operation, cmd == nil)
 	}
 	if strings.Contains(readFile(t, shell.ZshrcPath()), "ozsh") {
 		t.Fatal("Apply modified .zshrc before confirmation")
+	}
+	updated, _ = model.Update(prepareApply())
+	model = updated.(Model)
+	if !model.confirmApply {
+		t.Fatal("Apply preview result did not enter confirmation state")
 	}
 	if !strings.Contains(model.apply(), "press y to confirm") {
 		t.Fatalf("Apply view missing confirmation prompt:\n%s", model.apply())
@@ -71,15 +76,20 @@ func TestThemeAndPluginControls(t *testing.T) {
 
 	model.tab = 5
 	model.cursor = 0
-	model.applyThemeAtCursor()
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = completeOperation(t, updated.(Model), cmd)
 	if model.cfg.Theme.Name == "" {
 		t.Fatal("theme was not applied")
 	}
 
 	model.tab = tabPlugins
 	model.cursor = 0
-	model.togglePluginAtCursor()
-	model.trustPluginAtCursor()
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = completeOperation(t, updated.(Model), cmd)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	model = updated.(Model)
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	model = completeOperation(t, updated.(Model), cmd)
 	if !model.cfg.Plugins.Items[0].Enabled || !model.cfg.Plugins.Items[0].Trusted {
 		t.Fatal("plugin controls did not enable and trust plugin")
 	}
@@ -96,7 +106,10 @@ func TestPluginTrustControlRejectsUnsafeLoadFile(t *testing.T) {
 	model.tab = tabPlugins
 	model.cursor = 0
 
-	model.trustPluginAtCursor()
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	model = completeOperation(t, updated.(Model), cmd)
 
 	if model.cfg.Plugins.Items[0].Trusted {
 		t.Fatal("trust control trusted plugin with missing load file")
@@ -176,7 +189,8 @@ func TestThemeControlsStoreCustom(t *testing.T) {
 	model := NewModel(config.Default())
 	model.tab = 5
 
-	model.saveCustomTheme()
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	model = completeOperation(t, updated.(Model), cmd)
 	if model.cfg.Theme.Name != "custom" || !strings.Contains(model.msg, "custom") {
 		t.Fatalf("saveCustomTheme() theme=%q msg=%q, want custom", model.cfg.Theme.Name, model.msg)
 	}
@@ -190,10 +204,15 @@ func TestDoApplyUsesConfigurationSnapshot(t *testing.T) {
 	}
 	cfg := config.Default()
 	cfg.Prompt.Separator = " snapshot "
-	cmd := doApply(cfg)
+	preview, err := shell.PreviewInjectPlan()
+	if err != nil {
+		t.Fatalf("PreviewInjectPlan() error = %v", err)
+	}
+	cmd := doApply(cfg, preview.Before, preview.Target, config.Default(), false)
 	cfg.Prompt.Separator = " mutated "
-	if result := cmd(); result != applyResult("applied") {
-		t.Fatalf("doApply result = %#v", result)
+	result := cmd().(applyResult)
+	if result.err != nil {
+		t.Fatalf("doApply result error = %v", result.err)
 	}
 	saved, err := config.Load()
 	if err != nil {
@@ -230,7 +249,8 @@ func TestPluginControlsUntrustAndRejectEmptyAddForm(t *testing.T) {
 	model.tab = tabPlugins
 	model.cursor = 0
 
-	model.untrustPluginAtCursor()
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	model = completeOperation(t, updated.(Model), cmd)
 	if model.cfg.Plugins.Items[0].Trusted {
 		t.Fatal("untrustPluginAtCursor left plugin trusted")
 	}
@@ -282,6 +302,8 @@ func TestViewsRenderAllTabs(t *testing.T) {
 		{Name: "demo", Enabled: true, Trusted: false, Source: filepath.Join(home, ".config", "ozsh", "plugins", "demo"), Load: "plugin.zsh"},
 	}
 	model := NewModel(cfg)
+	updated, _ := model.Update(inspectDashboard())
+	model = updated.(Model)
 
 	for _, tc := range []struct {
 		tab  int
@@ -290,8 +312,8 @@ func TestViewsRenderAllTabs(t *testing.T) {
 		{tab: 0, want: "config:"},
 		{tab: 1, want: "segments"},
 		{tab: 2, want: "context"},
-		{tab: 3, want: "planned .zshrc diff"},
-		{tab: 4, want: "press enter to fix"},
+		{tab: 3, want: "apply configuration"},
+		{tab: 4, want: "diagnostics not loaded"},
 		{tab: 5, want: "theme gallery"},
 		{tab: 6, want: "plugins"},
 	} {
@@ -308,9 +330,11 @@ func TestDoctorFixCreatesMissingFiles(t *testing.T) {
 	t.Setenv("HOME", home)
 	model := NewModel(config.Default())
 
-	msg := model.fixDoctor()
-	if !strings.Contains(msg, "open Apply tab") {
-		t.Fatalf("fixDoctor() = %q, want apply guidance", msg)
+	model.setTab(tabDoctor)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = completeOperation(t, updated.(Model), cmd)
+	if !strings.Contains(model.msg, "open Apply tab") {
+		t.Fatalf("doctor message = %q, want apply guidance", model.msg)
 	}
 	if _, err := os.Stat(config.Path()); err != nil {
 		t.Fatalf("fixDoctor did not create config: %v", err)
@@ -323,8 +347,10 @@ func TestDoctorFixCreatesMissingFiles(t *testing.T) {
 func TestPluginInputsUpdateURLField(t *testing.T) {
 	model := NewModel(config.Default())
 	model.tab = tabPlugins
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	model = updated.(Model)
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	model = updated.(Model)
 
 	if model.pluginURL.Value() != "x" {
@@ -335,10 +361,12 @@ func TestPluginInputsUpdateURLField(t *testing.T) {
 func TestPluginInputsAllowBackspaceInURLAndLoad(t *testing.T) {
 	model := NewModel(config.Default())
 	model.tab = tabPlugins
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	model = updated.(Model)
 	model.pluginURL.SetValue("https://example.com/x")
 	model.pluginURL.SetCursor(len(model.pluginURL.Value()))
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
 	model = updated.(Model)
 	if model.pluginURL.Value() != "https://example.com/" {
 		t.Fatalf("plugin URL after backspace = %q", model.pluginURL.Value())
@@ -372,10 +400,10 @@ func TestTabNavigationWorksFromPreviewAndBuilder(t *testing.T) {
 		t.Fatalf("builder tab navigation = %d, want preview tab", model.tab)
 	}
 
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	model = updated.(Model)
 	if model.tab != tabApply {
-		t.Fatalf("preview right navigation = %d, want apply tab", model.tab)
+		t.Fatalf("preview tab navigation = %d, want apply tab", model.tab)
 	}
 }
 
@@ -388,6 +416,8 @@ func TestPluginNavigationWorksWhileKeepingNumericURLInput(t *testing.T) {
 	if model.tab != tabDashboard {
 		t.Fatalf("plugin right navigation = %d, want dashboard tab", model.tab)
 	}
+	updated, _ = model.Update(inspectDashboard())
+	model = updated.(Model)
 
 	model.setTab(tabPlugins)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
@@ -397,6 +427,8 @@ func TestPluginNavigationWorksWhileKeepingNumericURLInput(t *testing.T) {
 	}
 
 	model.setTab(tabPlugins)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	model = updated.(Model)
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
@@ -432,18 +464,18 @@ func TestWriteCheckRendersPassAndFail(t *testing.T) {
 	}
 }
 
-func TestTermuxPreviewConfigDisablesHeavySegments(t *testing.T) {
+func TestTermuxPreviewMatchesAppliedConfiguration(t *testing.T) {
 	t.Setenv("TERMUX_VERSION", "1")
 	model := NewModel(config.Default())
 	model.cfg.Prompt.RightPrompt = true
 	model.cfg.Prompt.RightOrder = []string{"time"}
 
 	previewCfg := model.previewConfig()
-	if !previewCfg.Prompt.DisableHeavySegments {
-		t.Fatal("Termux preview config did not disable heavy segments")
+	if previewCfg.Prompt.DisableHeavySegments {
+		t.Fatal("Termux preview unexpectedly changed heavy segment policy")
 	}
-	if previewCfg.Prompt.RightPrompt || len(previewCfg.Prompt.RightOrder) != 0 {
-		t.Fatal("Termux preview config did not simplify right prompt")
+	if !previewCfg.Prompt.RightPrompt || len(previewCfg.Prompt.RightOrder) != 1 {
+		t.Fatal("Termux preview does not match the configuration that Apply will use")
 	}
 }
 

@@ -17,8 +17,12 @@ go test -coverprofile="$coverage_file" ./...
 go tool cover -func="$coverage_file" | awk -v min="$coverage_min" '/^total:/ { if ($3 + 0 < min) { print "coverage " $3 " is below " min "%"; exit 1 } }'
 
 if [[ "$fast" -eq 0 ]]; then
-  echo "[test] race tests"
-  go test -race ./...
+  if [[ "$(go env GOOS)" == "android" ]]; then
+    echo "[test] race tests skipped: Go race detector is unavailable on Android"
+  else
+    echo "[test] race tests"
+    go test -race ./...
+  fi
 
   echo "[test] smoke tests"
   scripts/release-smoke.sh

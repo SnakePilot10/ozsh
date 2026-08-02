@@ -14,8 +14,13 @@ echo "[setup] downloading Go modules"
 go mod download
 
 echo "[setup] installing Go quality tools"
-GOTOOLCHAIN=go1.25.12 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
-GOTOOLCHAIN=go1.25.12 go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+toolchain="go1.25.12"
+if [[ "$(go env GOOS)" == "android" ]]; then
+  # Go does not publish downloadable toolchains for Android/Termux.
+  toolchain="local"
+fi
+GOTOOLCHAIN="$toolchain" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
+GOTOOLCHAIN="$toolchain" go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
 
 if command -v pre-commit >/dev/null 2>&1; then
   echo "[setup] installing pre-commit hooks"

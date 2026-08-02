@@ -449,6 +449,10 @@ func TestInstallUpdatedBinaryReplacesExecutable(t *testing.T) {
 	if err := os.WriteFile(executable, []byte("old binary\n"), 0755); err != nil {
 		t.Fatalf("WriteFile(executable) error = %v", err)
 	}
+	originalInfo, err := os.Stat(executable)
+	if err != nil {
+		t.Fatalf("Stat(original executable) error = %v", err)
+	}
 	fakeGo := filepath.Join(fakeBin, "go")
 	if err := os.WriteFile(fakeGo, []byte(`#!/bin/sh
 set -eu
@@ -489,8 +493,8 @@ printf 'new binary\n' > "$out"
 	if err != nil {
 		t.Fatalf("Stat(executable) error = %v", err)
 	}
-	if got := info.Mode().Perm(); got != 0755 {
-		t.Fatalf("executable permissions = %v, want 0755", got)
+	if got, want := info.Mode().Perm(), originalInfo.Mode().Perm(); got != want {
+		t.Fatalf("executable permissions = %v, want preserved mode %v", got, want)
 	}
 }
 
@@ -524,7 +528,7 @@ func buildTestBinary(t *testing.T) string {
 
 	bin := filepath.Join(t.TempDir(), "ozsh-test")
 	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", bin, ".")
-	cmd.Env = append(os.Environ(), "GOCACHE=/tmp/ozsh-go-build", "GOMODCACHE=/tmp/ozsh-gomod")
+	cmd.Env = append(os.Environ(), "GOCACHE="+t.TempDir())
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out

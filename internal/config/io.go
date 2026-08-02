@@ -139,9 +139,6 @@ func Save(cfg *Config) error {
 	if err := os.Rename(tmpPath, Path()); err != nil {
 		return fmt.Errorf("failed to replace config atomically: %w", err)
 	}
-	if err := os.Chmod(Path(), configFileMode); err != nil {
-		return fmt.Errorf("failed to secure config file: %w", err)
-	}
 	return nil
 }
 

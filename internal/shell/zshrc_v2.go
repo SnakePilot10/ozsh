@@ -30,24 +30,36 @@ func ManagedBlock() string {
 	return fmt.Sprintf("%s\n%s\n%s\n", blockStart, blockBody, blockEnd)
 }
 
+type InjectPreview struct {
+	Before  string
+	After   string
+	Logical string
+	Target  string
+}
+
 func PreviewInjectBlock() (string, string, error) {
+	preview, err := PreviewInjectPlan()
+	return preview.Before, preview.After, err
+}
+
+func PreviewInjectPlan() (InjectPreview, error) {
 	logical, target, err := ResolveZshrcTarget()
 	if err != nil {
-		return "", "", err
+		return InjectPreview{}, err
 	}
 	data, err := os.ReadFile(target)
 	if err != nil {
 		if os.IsNotExist(err) {
 			data = []byte{}
 		} else {
-			return "", "", fmt.Errorf("failed to read .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
+			return InjectPreview{}, fmt.Errorf("failed to read .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
 		}
 	}
 	before := string(data)
 	if hasMalformedBlock(before) {
-		return "", "", fmt.Errorf("managed ozsh block is malformed; restore or repair .zshrc before applying")
+		return InjectPreview{}, fmt.Errorf("managed ozsh block is malformed; restore or repair .zshrc before applying")
 	}
-	return before, injectBlockContent(before), nil
+	return InjectPreview{Before: before, After: injectBlockContent(before), Logical: logical, Target: target}, nil
 }
 
 func DiffLines(before, after string) string {
@@ -94,9 +106,24 @@ func DiffLines(before, after string) string {
 }
 
 func InjectBlock() error {
+	return injectBlock(nil, "")
+}
+
+func InjectBlockIfUnchanged(expected string) error {
+	return injectBlock(&expected, "")
+}
+
+func InjectBlockPlanIfUnchanged(expected, expectedTarget string) error {
+	return injectBlock(&expected, expectedTarget)
+}
+
+func injectBlock(expected *string, expectedTarget string) error {
 	logical, target, err := ResolveZshrcTarget()
 	if err != nil {
 		return err
+	}
+	if expectedTarget != "" && target != expectedTarget {
+		return fmt.Errorf(".zshrc target changed after preview; refusing to apply stale changes")
 	}
 	mode, err := ensureZshrc(target)
 	if err != nil {
@@ -107,11 +134,21 @@ func InjectBlock() error {
 		return fmt.Errorf("failed to read .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
 	}
 	content := string(data)
+	if expected != nil && content != *expected {
+		return fmt.Errorf(".zshrc changed after preview; refusing to apply stale changes")
+	}
 	if hasMalformedBlock(content) {
 		return fmt.Errorf("managed ozsh block is malformed; refusing to modify .zshrc")
 	}
 	if _, err := Backup(); err != nil {
 		return fmt.Errorf("backup failed: %w", err)
+	}
+	latest, err := os.ReadFile(target)
+	if err != nil {
+		return fmt.Errorf("failed to re-read .zshrc%s: %w", zshrcTargetDescription(logical, target), err)
+	}
+	if string(latest) != content {
+		return fmt.Errorf(".zshrc changed during apply; refusing to overwrite it")
 	}
 	if err := atomicWrite(target, []byte(injectBlockContent(content)), mode); err != nil {
 		return fmt.Errorf("failed to write .zshrc%s: %w", zshrcTargetDescription(logical, target), err)

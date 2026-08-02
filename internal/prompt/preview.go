@@ -9,10 +9,22 @@ import (
 )
 
 func Simulated(cfg *config.Config) string {
-	return SimulatedWithContext(cfg, DefaultPreviewContext())
+	return simulated(cfg, DefaultPreviewContext(), true, "❯")
 }
 
 func SimulatedWithContext(cfg *config.Config, previewCtx PreviewContext) string {
+	return simulated(cfg, previewCtx, true, "❯")
+}
+
+func SimulatedPlain(cfg *config.Config, marker string) string {
+	return simulated(cfg, DefaultPreviewContext(), false, marker)
+}
+
+func SimulatedWithContextPlain(cfg *config.Config, previewCtx PreviewContext, marker string) string {
+	return simulated(cfg, previewCtx, false, marker)
+}
+
+func simulated(cfg *config.Config, previewCtx PreviewContext, color bool, marker string) string {
 	clone := cloneForPreview(cfg)
 	config.FillDefaults(&clone)
 
@@ -21,12 +33,12 @@ func SimulatedWithContext(cfg *config.Config, previewCtx PreviewContext) string 
 	rightParts := make([]string, 0, len(clone.Prompt.RightOrder))
 
 	for _, name := range clone.Prompt.Order {
-		if rendered := renderPreviewSegment(&clone, ctx, name); rendered != "" {
+		if rendered := renderPreviewSegment(&clone, ctx, name, color); rendered != "" {
 			parts = append(parts, rendered)
 		}
 	}
 	for _, name := range clone.Prompt.RightOrder {
-		if rendered := renderPreviewSegment(&clone, ctx, name); rendered != "" {
+		if rendered := renderPreviewSegment(&clone, ctx, name, color); rendered != "" {
 			rightParts = append(rightParts, rendered)
 		}
 	}
@@ -36,9 +48,9 @@ func SimulatedWithContext(cfg *config.Config, previewCtx PreviewContext) string 
 		line = fmt.Sprintf("%s    %s", line, strings.Join(rightParts, clone.Prompt.Separator))
 	}
 	if clone.Prompt.Newline {
-		return fmt.Sprintf("%s\n❯", line)
+		return fmt.Sprintf("%s\n%s", line, marker)
 	}
-	return fmt.Sprintf("%s ❯", line)
+	return fmt.Sprintf("%s %s", line, marker)
 }
 
 func cloneForPreview(cfg *config.Config) config.Config {
@@ -53,7 +65,7 @@ func cloneForPreview(cfg *config.Config) config.Config {
 	return clone
 }
 
-func renderPreviewSegment(cfg *config.Config, ctx *fakeContext, name string) string {
+func renderPreviewSegment(cfg *config.Config, ctx *fakeContext, name string, color bool) string {
 	segCfg, ok := cfg.Prompt.Segments[name]
 	if !ok || !segmentActive(cfg, name, segCfg) {
 		return ""
@@ -68,6 +80,9 @@ func renderPreviewSegment(cfg *config.Config, ctx *fakeContext, name string) str
 	}
 	if segCfg.Icon != "" {
 		rendered = segCfg.Icon + " " + rendered
+	}
+	if !color {
+		return rendered
 	}
 	return ansiWrap(rendered, segCfg)
 }
