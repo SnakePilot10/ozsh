@@ -13,7 +13,7 @@ and Termux.
 
 - **Safe by default.** Managed `.zshrc` changes are atomic and backed up.
 - **Preview before apply.** Configuration can be inspected without touching the shell.
-- **Manual plugins.** Third-party shell code is never trusted implicitly.
+- **Explicit plugins.** Recommended plugins are selected by default, but downloaded only after confirmation.
 - **Termux matters.** Android is treated as a supported environment, not an afterthought.
 
 ## Installation
@@ -56,8 +56,9 @@ ozsh apply
 ozsh reset
 
 ozsh theme list
-ozsh theme preview cyber-cyan
-ozsh theme apply cyber-cyan
+ozsh theme preview dracula
+ozsh theme preview circuit --variant amber
+ozsh theme apply circuit --variant neon
 
 ozsh plugin list
 ozsh plugin add https://github.com/user/plugin.git plugin.zsh
@@ -86,11 +87,14 @@ and replaces the currently running binary.
 Configuration lives at `~/.config/ozsh/config.toml`.
 
 ```toml
-version = 1
+version = 2
 
 [prompt]
 style = "simple"
-newline = true
+display_name = "user"
+icon_mode = "compatible"
+layout = "two-line"
+symbol = "❯"
 right_prompt = false
 disable_heavy_segments = false
 separator = "  "
@@ -113,8 +117,9 @@ Available segments:
 - `jobs`: background job count.
 
 Colors accept Zsh color names or six-digit hex values such as `#00f5ff`.
-Each segment can also define a literal `icon` and foreground/background colors;
-dynamic prompt text and icons are escaped before Zsh renders them.
+Each segment can define separate `compatible_icon` and `nerd_icon` values plus
+foreground/background colors. Compatible icons are the default and require no
+special font. Dynamic prompt text and icons are escaped before Zsh renders them.
 `right_order` controls `RPROMPT`. Set `disable_heavy_segments = true` to skip
 runtime-heavy segments such as Git, Node.js, Go, and battery detection.
 
@@ -126,13 +131,19 @@ that field are migrated automatically after creating a timestamped backup next t
 
 Built-in presets:
 
-- `cyber-cyan`
-- `neon-red`
-- `matrix-green`
+- `minimal`, `pure`, `powerline`, `cyberpunk`
+- `matrix`, `dracula`, `nord`, `gruvbox`
+- `catppuccin`, `termux`, `circuit`, `retro`
 
-Preset files are stored under `presets/` for users and packagers.
+Circuit alone provides `blue`, `green`, `amber`, `red`, `mono`, and `neon`
+variants. Use `--variant <name>` with `theme preview` or `theme apply`.
 
-## Manual plugins
+## Plugins
+
+Fresh configurations select `zsh-autosuggestions`, `fzf-tab`, and
+`zsh-syntax-highlighting`. The TUI shows one confirmation before downloading
+them. Completion initializes before `fzf-tab`, and syntax highlighting always
+loads last.
 
 Plugins are cloned into `~/.config/ozsh/plugins/`. Only HTTPS repository URLs
 are accepted. A plugin load path must be a relative `.zsh` or `.sh` file.
@@ -144,9 +155,16 @@ before running `ozsh plugin trust <name>`.
 
 ## TUI
 
-`ozsh tui` opens a Bubble Tea interface with dashboard, prompt builder, editable
-preview, apply, doctor, themes, and plugins views. The apply flow shows the
-planned `.zshrc` diff and requires confirmation before writing.
+`ozsh tui` opens five focused screens in this order: Home, Prompt, Themes,
+Plugins, and Preview. Doctor, backup recovery, and the optional Nerd Font
+installer live under Home. Review & Apply is a global modal and never writes
+`.zshrc` before final confirmation.
+
+The layout adapts below 72 columns for Termux and other narrow terminals. The
+font dialog offers JetBrainsMono, MesloLGS, and FiraCode Nerd Font from pinned,
+SHA-256-verified archives. Termux activation backs up `~/.termux/font.ttf` and
+reloads settings; Linux installs the font for the current user and asks you to
+select it in terminal settings.
 
 ## Termux
 
@@ -183,13 +201,15 @@ vulnerabilities and secrets, and cross-builds for Android/Termux ARM64.
 ```text
 cmd/ozsh/          CLI entrypoint and command tests
 internal/config/   TOML loading, persistence, defaults, and validation
+internal/fonts/    verified Nerd Font download, install, and recovery
 internal/logging/  local logging and rotation
-internal/plugins/  manual plugin management and trust rules
+internal/plugins/  curated and custom plugin management and trust rules
 internal/prompt/   prompt generation and preview
 internal/shell/    environment detection, .zshrc management, and backups
+internal/themes/   declarative built-in theme catalog
 internal/tui/      Bubble Tea interface
 packaging/         AUR packaging
-presets/           built-in themes
+presets/           legacy package compatibility assets
 scripts/           development, validation, installation, and release smoke tests
 ```
 
