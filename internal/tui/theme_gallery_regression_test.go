@@ -53,6 +53,13 @@ func TestThemeGalleryMarksOnlyTheAppliedCircuitVariant(t *testing.T) {
 	model.setTab(tabThemes)
 	model.width = 100
 	model.height = 42
+	for cursor := 0; cursor < model.selectionCount(); cursor++ {
+		model.cursor = cursor
+		preset, ok := model.selectedTheme()
+		if ok && preset.ID == "circuit" && preset.Variant == "amber" {
+			break
+		}
+	}
 
 	view := model.themes()
 	if !strings.Contains(view, "✓ Circuit Amber") {
