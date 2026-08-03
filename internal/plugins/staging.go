@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/snakepilot10/ozsh/internal/config"
 )
 
 // CloneRunner isolates repository cloning so the TUI and tests do not depend
