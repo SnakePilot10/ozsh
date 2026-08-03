@@ -85,10 +85,11 @@ func StageRepository(ctx context.Context, cfg *config.Config, rawURL string, run
 		StagingDir: stagingDir,
 		FinalDir:   finalDir,
 	}
+	cleanupStage := stage
 	cleanup := true
 	defer func() {
 		if cleanup {
-			_ = stage.Cleanup()
+			_ = cleanupStage.Cleanup()
 		}
 	}()
 	if err := os.Chmod(stagingDir, 0o700); err != nil {
