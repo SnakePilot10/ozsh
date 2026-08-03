@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/snakepilot10/ozsh/internal/config"
 )
 
@@ -42,7 +44,15 @@ func configWithoutPromptBackgrounds() *config.Config {
 	return cfg
 }
 
+func useTrueColor(t *testing.T) {
+	t.Helper()
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+}
+
 func TestTUIChromeDoesNotEmitBackgroundColors(t *testing.T) {
+	useTrueColor(t)
 	for tab := range tabs {
 		model := NewModel(configWithoutPromptBackgrounds())
 		model.width, model.height = 100, 34
