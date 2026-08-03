@@ -16,19 +16,32 @@ var sgrSequence = regexp.MustCompile(`\x1b\[([0-9;]*)m`)
 func firstBackgroundSGR(value string) string {
 	for _, match := range sgrSequence.FindAllStringSubmatch(value, -1) {
 		parameters := strings.Split(match[1], ";")
-		for index, parameter := range parameters {
-			code, err := strconv.Atoi(parameter)
+		for index := 0; index < len(parameters); index++ {
+			code, err := strconv.Atoi(parameters[index])
 			if err != nil {
+				continue
+			}
+			if code == 38 || code == 48 {
+				if index+1 >= len(parameters) {
+					continue
+				}
+				mode, modeErr := strconv.Atoi(parameters[index+1])
+				if modeErr != nil {
+					continue
+				}
+				if code == 48 && (mode == 2 || mode == 5) {
+					return match[0]
+				}
+				switch mode {
+				case 2:
+					index += 4
+				case 5:
+					index += 2
+				}
 				continue
 			}
 			if (code >= 40 && code <= 49) || (code >= 100 && code <= 107) {
 				return match[0]
-			}
-			if code == 48 && index+1 < len(parameters) {
-				mode, modeErr := strconv.Atoi(parameters[index+1])
-				if modeErr == nil && (mode == 2 || mode == 5) {
-					return match[0]
-				}
 			}
 		}
 	}
@@ -49,6 +62,17 @@ func useTrueColor(t *testing.T) {
 	previous := lipgloss.ColorProfile()
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+}
+
+func TestBackgroundDetectorDistinguishesForegroundPayload(t *testing.T) {
+	foreground := "\x1b[38;2;48;87;92mtext\x1b[0m"
+	if match := firstBackgroundSGR(foreground); match != "" {
+		t.Fatalf("foreground was misclassified as background: %q", match)
+	}
+	background := "\x1b[38;2;242;244;248;48;2;9;9;13mtext\x1b[0m"
+	if match := firstBackgroundSGR(background); match == "" {
+		t.Fatal("truecolor background was not detected")
+	}
 }
 
 func TestTUIChromeDoesNotEmitBackgroundColors(t *testing.T) {
