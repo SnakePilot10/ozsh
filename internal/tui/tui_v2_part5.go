@@ -13,8 +13,21 @@ func (m *Model) cycleThemeVariant(delta int) {
 	if m.cursor < 0 || m.cursor >= len(presets) || presets[m.cursor].ID != "circuit" {
 		return
 	}
-	variants := themecatalog.Variants("circuit")
-	m.themeVariant = wrapIndex(m.themeVariant+delta, len(variants))
+	indices := make([]int, 0, len(themecatalog.Variants("circuit")))
+	position := 0
+	for index, preset := range presets {
+		if preset.ID != "circuit" {
+			continue
+		}
+		if index == m.cursor {
+			position = len(indices)
+		}
+		indices = append(indices, index)
+	}
+	if len(indices) == 0 {
+		return
+	}
+	m.cursor = indices[wrapIndex(position+delta, len(indices))]
 }
 
 func (m *Model) togglePluginAtCursor() {
@@ -161,7 +174,7 @@ func removeString(values []string, value string) []string {
 }
 
 func sortedThemeNames() []string {
-	presets := themecatalog.List()
+	presets := themecatalog.Families()
 	names := make([]string, len(presets))
 	for i, preset := range presets {
 		names[i] = preset.ID

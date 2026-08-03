@@ -7,15 +7,32 @@ import (
 	"github.com/snakepilot10/ozsh/internal/config"
 )
 
-func TestListReturnsTwelveGalleryThemes(t *testing.T) {
+func TestListReturnsEverySelectablePreset(t *testing.T) {
 	presets := List()
+	if len(presets) != 17 {
+		t.Fatalf("List() length = %d, want 17", len(presets))
+	}
+	var circuit []string
+	for _, preset := range presets {
+		if preset.ID == "circuit" {
+			circuit = append(circuit, preset.Variant)
+		}
+	}
+	wantCircuit := []string{"blue", "green", "amber", "red", "mono", "neon"}
+	if !reflect.DeepEqual(circuit, wantCircuit) {
+		t.Fatalf("List() Circuit variants = %#v, want %#v", circuit, wantCircuit)
+	}
+}
+
+func TestFamiliesReturnsTwelveUniqueThemes(t *testing.T) {
+	presets := Families()
 	if len(presets) != 12 {
-		t.Fatalf("List() length = %d, want 12", len(presets))
+		t.Fatalf("Families() length = %d, want 12", len(presets))
 	}
 	seen := map[string]bool{}
 	for _, preset := range presets {
 		if seen[preset.ID] {
-			t.Fatalf("List() returned duplicate ID %q", preset.ID)
+			t.Fatalf("Families() returned duplicate ID %q", preset.ID)
 		}
 		seen[preset.ID] = true
 	}
