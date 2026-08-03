@@ -2,13 +2,36 @@ package tui
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/snakepilot10/ozsh/internal/config"
 )
 
-var backgroundSGR = regexp.MustCompile(`\x1b\[(?:4[0-9]|10[0-7]|48;(?:2|5);[0-9;]+)m`)
+var sgrSequence = regexp.MustCompile(`\x1b\[([0-9;]*)m`)
+
+func firstBackgroundSGR(value string) string {
+	for _, match := range sgrSequence.FindAllStringSubmatch(value, -1) {
+		parameters := strings.Split(match[1], ";")
+		for index, parameter := range parameters {
+			code, err := strconv.Atoi(parameter)
+			if err != nil {
+				continue
+			}
+			if (code >= 40 && code <= 49) || (code >= 100 && code <= 107) {
+				return match[0]
+			}
+			if code == 48 && index+1 < len(parameters) {
+				mode, modeErr := strconv.Atoi(parameters[index+1])
+				if modeErr == nil && (mode == 2 || mode == 5) {
+					return match[0]
+				}
+			}
+		}
+	}
+	return ""
+}
 
 func configWithoutPromptBackgrounds() *config.Config {
 	cfg := config.Default()
@@ -24,7 +47,7 @@ func TestTUIChromeDoesNotEmitBackgroundColors(t *testing.T) {
 		model := NewModel(configWithoutPromptBackgrounds())
 		model.width, model.height = 100, 34
 		model.setTab(tab)
-		if match := backgroundSGR.FindString(model.View()); match != "" {
+		if match := firstBackgroundSGR(model.View()); match != "" {
 			t.Fatalf("tab %d emitted background SGR %q", tab, match)
 		}
 	}
