@@ -1,7 +1,7 @@
 # Starship, Transparent TUI, and Extensible Plugins Design
 
 Date: 2026-08-02
-Status: Approved for planning
+Status: Design approved; written specification pending user review
 Repository: `SnakePilot10/ozsh`
 
 ## 1. Purpose
@@ -51,7 +51,7 @@ PR A includes:
 - preserving the existing curated catalog;
 - adding regression tests for transparent rendering, responsive layout, staging, rollback, and plugin lifecycle operations.
 
-PR A does not change the prompt engine or configuration schema.
+PR A does not change the prompt engine or persisted configuration schema.
 
 ### 3.2 PR B: Starship engine
 
@@ -89,7 +89,7 @@ This applies to:
 
 Prompt output may still contain background colors because prompt styling is user content rather than TUI chrome.
 
-The semantic palette remains, but `Surface` and `Panel` stop being used as backgrounds. They may be removed if no foreground or border use remains.
+The semantic palette remains, but `Surface` and `Panel` stop being used as backgrounds. They are removed if no legitimate foreground or border use remains.
 
 Selection uses all of the following when space allows:
 
@@ -151,6 +151,8 @@ The details pane shows the selected plugin's:
 - activation state;
 - available actions.
 
+Curated repository URLs come from catalog metadata. Custom repository URLs are read from the managed checkout's Git origin when available, so PR A does not need a schema change.
+
 When no custom plugins exist, the section shows a concise empty state and the `Add custom plugin` key remains visible.
 
 ### 4.4 Custom plugin wizard
@@ -192,7 +194,7 @@ Using the same parent filesystem allows finalization through an atomic rename.
 
 The staging directory and plugin root use mode `0700` where supported.
 
-Cancel, timeout, clone failure, TUI exit, or failed finalization removes the staging directory.
+Cancel, timeout, clone failure, normal TUI exit, or failed finalization removes the staging directory. At startup, ozsh also removes stale `.staging-*` directories after verifying that each path is a real directory directly beneath the managed plugin root and is not referenced by the active session.
 
 #### Step 3: candidate discovery
 
@@ -204,9 +206,24 @@ Accepted suffixes:
 - `.zsh`
 - `.sh`
 
-The scanner excludes `.git` and ignores obvious documentation, test, example, vendor, and generated directories where practical.
+The scanner excludes these directory names case-insensitively:
 
-The scan has bounded depth and a maximum candidate count to avoid pathological repositories.
+- `.git`
+- `node_modules`
+- `vendor`
+- `test`
+- `tests`
+- `spec`
+- `specs`
+- `doc`
+- `docs`
+- `example`
+- `examples`
+- `fixture`
+- `fixtures`
+- `generated`
+
+Traversal is limited to four directory levels below the repository root and at most 200 candidates. Exceeding the candidate limit stops discovery and returns a clear error instead of presenting an incomplete list.
 
 Candidates are ranked in this order:
 
@@ -214,7 +231,7 @@ Candidates are ranked in this order:
 2. other root-level `*.plugin.zsh` files;
 3. root-level `*.zsh` files;
 4. root-level `*.sh` files;
-5. nested candidates by the same suffix priority and then path depth.
+5. nested candidates by the same suffix priority, then path depth, then lexical path.
 
 The wizard never selects a candidate silently. Even when there is one candidate, the user confirms it.
 
@@ -240,14 +257,14 @@ The selected plugin is added to the in-memory pending configuration and the stag
 
 Final activation occurs only through Review & Apply. Apply performs:
 
-1. revalidate staging directory and chosen load file;
-2. atomically rename staging directory to the final managed directory;
+1. revalidate the staging directory and chosen load file;
+2. atomically rename the staging directory to the final managed directory;
 3. update the plugin item source path;
 4. persist configuration;
 5. generate the managed Zsh file;
 6. roll back the rename and configuration if persistence or generation fails.
 
-A successful Apply removes any obsolete staging metadata.
+A successful Apply removes obsolete staging metadata.
 
 ### 4.5 Plugin lifecycle actions
 
@@ -279,7 +296,7 @@ Required error cases include:
 - duplicate plugin;
 - clone timeout;
 - clone cancellation;
-- repository too large for bounded candidate discovery;
+- candidate limit exceeded;
 - no candidate files;
 - unsafe symlink;
 - unreadable candidate;
@@ -296,7 +313,7 @@ Rollback failure is reported separately and must not be hidden behind the origin
 
 PR B increments the configuration version from 2 to 3.
 
-The logical model becomes:
+The persisted version 3 layout is:
 
 ```toml
 version = 3
@@ -305,20 +322,28 @@ version = 3
 engine = "native"
 
 [prompt.native]
-# existing native prompt settings
+style = "minimal"
+# remaining existing native prompt fields
+
+[prompt.native.theme]
+id = "default"
+# remaining existing native theme fields
 
 [prompt.starship]
 preset = "pure-preset"
 ```
 
-Exact TOML field placement may be adjusted to preserve clean Go types, but these invariants are required:
+The Go model uses a prompt envelope containing `Engine`, `Native`, and `Starship` fields. The existing version 2 flat `[prompt]` fields and top-level `[theme]` block migrate into `[prompt.native]` and `[prompt.native.theme]` without value loss.
+
+The following invariants are required:
 
 - `prompt.engine` is either `native` or `starship`;
-- existing version 2 prompt settings migrate into the native configuration without value loss;
+- existing version 2 prompt and theme settings migrate into the native configuration without value loss;
 - native and Starship configurations coexist;
 - switching engines never overwrites the inactive engine's state;
 - missing engine defaults to `native`;
-- invalid engine values fail validation with a useful message.
+- invalid engine values fail validation with a useful message;
+- plugins retain their existing configuration and paths.
 
 The migration is deterministic and idempotent.
 
@@ -326,7 +351,7 @@ The migration is deterministic and idempotent.
 
 Prompt behavior is separated behind a small engine interface rather than spreading `if engine == ...` across the TUI.
 
-The interface must cover:
+The interface covers:
 
 - engine identifier and display name;
 - availability detection;
@@ -363,25 +388,27 @@ When Starship is selected and unavailable, the screen offers:
 
 Keeping Native reverts only the pending engine selection. It does not delete stored Starship settings.
 
+Apply is blocked while Starship is selected but unavailable, preventing ozsh from installing a broken prompt initialization.
+
 ### 5.4 Starship availability and installation
 
 Availability detection uses `exec.LookPath("starship")` and a short version probe with timeout.
 
-Termux is detected using reliable environment and filesystem signals already used elsewhere in ozsh. The managed command is:
+Termux is detected using reliable environment and filesystem signals already used elsewhere in ozsh. The managed command is executed directly as an argument vector:
 
-```sh
+```text
 pkg install starship
 ```
 
-For generic Linux, ozsh offers the official installer targeted to a user-writable directory such as `~/.local/bin` and avoids `sudo` by default.
+For generic Linux, `Install now` downloads the official installer over HTTPS into an ozsh temporary file and invokes it directly with `/bin/sh`, non-interactive confirmation, and a user-writable target such as `~/.local/bin`. ozsh does not construct or execute a `curl | sh` pipeline and does not request `sudo` by default.
 
-The UI always offers `Show instructions` before executing an installer.
+The installer screen presents `Install now` and `Show instructions` together before any command runs. Installation begins only after explicit confirmation.
 
-Installation commands are represented as structured plans rather than interpolated shell strings. Commands execute directly through `exec.CommandContext`.
+Installation commands and downloads are represented as structured plans rather than interpolated shell strings. Processes execute through `exec.CommandContext`.
 
 After installation, ozsh repeats availability detection and reports the resolved executable and version.
 
-Failure leaves the engine selection pending but inactive until the user chooses retry, instructions, or Native.
+Failure leaves Starship settings preserved and offers Retry, Show instructions, or Keep Native. Apply remains blocked until Starship becomes available or the pending engine returns to Native.
 
 ### 5.5 Starship configuration ownership
 
@@ -409,9 +436,9 @@ The Starship file begins with an ozsh ownership comment and is generated determi
 Themes are contextual to the active engine.
 
 - Native engine: existing ozsh theme catalog.
-- Starship engine: Starship preset catalog.
+- Starship engine: embedded Starship preset catalog.
 
-The initial Starship catalog includes a compact, reviewed set drawn from official presets and ozsh-maintained adaptations:
+The initial Starship catalog includes a compact, reviewed set based on official Starship presets and explicitly marked ozsh adaptations:
 
 - Pure;
 - Gruvbox Rainbow;
@@ -427,10 +454,11 @@ Each entry contains:
 - display name;
 - short description;
 - Nerd Font requirement;
-- source type: official preset or ozsh adaptation;
-- deterministic TOML content or generation strategy.
+- source type: official snapshot or ozsh adaptation;
+- source preset identifier;
+- embedded deterministic TOML content.
 
-The catalog is embedded so theme browsing does not require network access.
+Preset TOML is vendored as reviewed snapshots with source metadata. ozsh does not call `starship preset` at runtime and theme browsing does not require network access. This avoids output changes across Starship releases and keeps Review & Apply deterministic.
 
 Selecting a Starship theme updates the pending Starship configuration only.
 
@@ -487,7 +515,7 @@ Doctor adds checks for:
 - managed Starship config presence and readability;
 - `STARSHIP_CONFIG` ownership and path;
 - duplicate Starship initialization outside the managed ozsh block;
-- incompatible or missing Nerd Font requirement for the selected preset where detectable.
+- preset Nerd Font requirement against the existing font diagnostics where detectable.
 
 Warnings do not silently rewrite user-owned shell configuration.
 
@@ -532,8 +560,10 @@ Required tests include:
 - URL validation;
 - duplicate rejection;
 - staged clone timeout and cancellation;
+- stale staging cleanup;
 - candidate ranking;
-- depth and count bounds;
+- depth and candidate-count bounds;
+- excluded directory handling;
 - symlink rejection;
 - explicit candidate confirmation;
 - explicit trust confirmation;
@@ -549,7 +579,7 @@ Required tests include:
 
 Required tests include:
 
-- version 2 to version 3 migration;
+- version 2 to version 3 migration of prompt and theme data;
 - idempotent migration;
 - invalid engine validation;
 - Native to Starship to Native state preservation;
@@ -559,8 +589,9 @@ Required tests include:
 - live preview through injected fake runner;
 - preview timeout and cancellation;
 - Termux installation plan;
-- generic Linux user-local installation plan;
+- generic Linux user-local download and installation plan;
 - command execution without shell interpolation;
+- Apply blocked when Starship is unavailable;
 - managed Zsh fragment for each engine;
 - removal of Starship init when returning to Native;
 - Review & Apply artifact list;
@@ -575,7 +606,7 @@ Compatibility requirements:
 - Existing users remain on the native engine after upgrade.
 - Existing version 2 prompt appearance remains unchanged unless the user edits it.
 - Existing curated plugins continue to work.
-- Existing plugin paths remain valid.
+- Existing custom plugin paths remain valid.
 - Starship is optional and ozsh remains useful without it.
 
 Non-goals for this phase:
