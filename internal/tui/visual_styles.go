@@ -11,6 +11,8 @@ var visualPalette = struct {
 	Text        lipgloss.AdaptiveColor
 	Subtle      lipgloss.AdaptiveColor
 	Muted       lipgloss.AdaptiveColor
+	Surface     lipgloss.AdaptiveColor
+	Panel       lipgloss.AdaptiveColor
 	Border      lipgloss.AdaptiveColor
 	FocusBorder lipgloss.AdaptiveColor
 	Success     lipgloss.AdaptiveColor
@@ -21,6 +23,8 @@ var visualPalette = struct {
 	Text:        lipgloss.AdaptiveColor{Light: "#20242B", Dark: "#F2F4F8"},
 	Subtle:      lipgloss.AdaptiveColor{Light: "#4D5968", Dark: "#A8B0C0"},
 	Muted:       lipgloss.AdaptiveColor{Light: "#667085", Dark: "#858FA3"},
+	Surface:     lipgloss.AdaptiveColor{Light: "#E9F5F5", Dark: "#121B20"},
+	Panel:       lipgloss.AdaptiveColor{Light: "#FAFCFC", Dark: "#09090D"},
 	Border:      lipgloss.AdaptiveColor{Light: "#779092", Dark: "#31575C"},
 	FocusBorder: lipgloss.AdaptiveColor{Light: "#007F89", Dark: "#27E6E6"},
 	Success:     lipgloss.AdaptiveColor{Light: "#16794A", Dark: "#5FD79A"},
