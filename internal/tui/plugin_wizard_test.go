@@ -68,14 +68,14 @@ func TestPluginWizardStartsCloneAndAcceptsCurrentResult(t *testing.T) {
 	}
 	result, ok := cmd().(pluginStageResult)
 	if !ok {
-		t.Fatalf("command result = %T", cmd())
+		t.Fatalf("command result has unexpected type")
 	}
 	updated, _ = cloning.Update(result)
 	got := updated.(Model)
 	if got.pluginWizard.Step != pluginWizardCandidates || got.pluginWizard.Stage == nil {
 		t.Fatalf("wizard = %#v", got.pluginWizard)
 	}
-	if len(got.pluginWizard.Stage.Candidates) != 1 || got.pluginWizard.Stage.Candidates[0].Path != "demo.plugin.zsh" {
+	if len(got.pluginWizard.Stage.Candidates) != 1 || got.pluginWizard.Stage.Candidates[0].RelativePath != "demo.plugin.zsh" {
 		t.Fatalf("candidates = %#v", got.pluginWizard.Stage.Candidates)
 	}
 	_ = got.pluginWizard.Stage.Cleanup()
