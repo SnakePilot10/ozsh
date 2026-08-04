@@ -81,7 +81,7 @@ func (m Model) pluginWizardCandidatesView() string {
 		return body.String()
 	}
 	for index, candidate := range m.pluginWizard.Stage.Candidates {
-		row := candidate.Path
+		row := candidate.RelativePath
 		if index == m.pluginWizard.Candidate {
 			row = selectedRowStyle.Copy().Padding(0).Render("› " + row)
 		} else {
@@ -109,7 +109,7 @@ func (m Model) pluginWizardTrustView() string {
 	body.WriteString("\n\n")
 	body.WriteString(renderKeyValue("Repository", m.pluginWizard.Stage.Repository.URL))
 	body.WriteString("\n")
-	body.WriteString(renderKeyValue("Load file", candidate.Path))
+	body.WriteString(renderKeyValue("Load file", candidate.RelativePath))
 	body.WriteString("\n")
 	body.WriteString(renderKeyValue("Managed path", m.pluginWizard.Stage.FinalDir))
 	body.WriteString("\n\n")
@@ -129,7 +129,7 @@ func (m Model) pluginWizardSummaryView() string {
 	body.WriteString("\n\n")
 	body.WriteString(renderKeyValue("Repository", m.pluginWizard.Stage.Repository.URL))
 	body.WriteString("\n")
-	body.WriteString(renderKeyValue("Load file", candidate.Path))
+	body.WriteString(renderKeyValue("Load file", candidate.RelativePath))
 	body.WriteString("\n")
 	body.WriteString(renderKeyValue("Final path", m.pluginWizard.Stage.FinalDir))
 	body.WriteString("\n")
