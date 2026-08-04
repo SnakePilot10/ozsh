@@ -13,6 +13,7 @@ type pluginListItem struct {
 	Kind        pluginItemKind
 	Definition  plugins.Definition
 	ConfigIndex int
+	Pending     bool
 }
 
 // pluginListItems keeps curated definitions first and appends only config
@@ -31,6 +32,7 @@ func (m Model) pluginListItems() []pluginListItem {
 		if _, curated := plugins.FindDefinition(item.Name); curated {
 			continue
 		}
+		_, pending := m.pluginChanges.RepositoryURLFor(item.Name)
 		items = append(items, pluginListItem{
 			Kind: pluginItemCustom,
 			Definition: plugins.Definition{
@@ -40,6 +42,7 @@ func (m Model) pluginListItems() []pluginListItem {
 				Load:        item.Load,
 			},
 			ConfigIndex: index,
+			Pending:     pending,
 		})
 	}
 	return items
@@ -58,6 +61,15 @@ func (m Model) selectedPluginListItem() (pluginListItem, bool) {
 		index = len(items) - 1
 	}
 	return items[index], true
+}
+
+func (m Model) pluginListItemByName(name string) (pluginListItem, bool) {
+	for _, item := range m.pluginListItems() {
+		if item.Kind == pluginItemCustom && item.Definition.ID == name {
+			return item, true
+		}
+	}
+	return pluginListItem{}, false
 }
 
 func (m Model) pluginConfigIndex(name string) int {
