@@ -317,12 +317,14 @@ func (m Model) selectedPluginPanel() string {
 		return b.String()
 	}
 	if selected.Kind == pluginItemCustom {
-		return m.selectedCustomPluginPanel(b, selected)
+		m.writeSelectedCustomPluginPanel(&b, selected)
+		return b.String()
 	}
-	return m.selectedRecommendedPluginPanel(b, selected.Definition)
+	m.writeSelectedRecommendedPluginPanel(&b, selected.Definition)
+	return b.String()
 }
 
-func (m Model) selectedRecommendedPluginPanel(b strings.Builder, definition plugins.Definition) string {
+func (m Model) writeSelectedRecommendedPluginPanel(b *strings.Builder, definition plugins.Definition) {
 	status := plugins.StatusFor(m.cfg, definition)
 	b.WriteString(accentStyle.Render(definition.Name))
 	b.WriteString("\n")
@@ -343,13 +345,12 @@ func (m Model) selectedRecommendedPluginPanel(b strings.Builder, definition plug
 	b.WriteString(renderKeyValue("Load file", definition.Load))
 	b.WriteString("\n")
 	b.WriteString(renderKeyValue("Repository", definition.URL))
-	return b.String()
 }
 
-func (m Model) selectedCustomPluginPanel(b strings.Builder, selected pluginListItem) string {
+func (m Model) writeSelectedCustomPluginPanel(b *strings.Builder, selected pluginListItem) {
 	if selected.ConfigIndex < 0 || selected.ConfigIndex >= len(m.cfg.Plugins.Items) {
 		b.WriteString(renderHint("Custom plugin configuration is unavailable"))
-		return b.String()
+		return
 	}
 	item := m.cfg.Plugins.Items[selected.ConfigIndex]
 	active := customPluginActive(item)
@@ -368,7 +369,6 @@ func (m Model) selectedCustomPluginPanel(b strings.Builder, selected pluginListI
 	b.WriteString(renderKeyValue("Enabled", yesNo(item.Enabled)))
 	b.WriteString("\n")
 	b.WriteString(renderKeyValue("Active", yesNo(active)))
-	return b.String()
 }
 
 func customPluginStateLabel(item config.PluginItem) string {
