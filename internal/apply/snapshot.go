@@ -92,6 +92,7 @@ func (snapshot fileSnapshot) restoreRegularFile() error {
 			if err := os.RemoveAll(snapshot.path); err != nil {
 				return fmt.Errorf("remove replacement path %s: %w", snapshot.path, err)
 			}
+		}
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("inspect restore target %s: %w", snapshot.path, err)
 	}
