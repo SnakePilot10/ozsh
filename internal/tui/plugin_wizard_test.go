@@ -68,7 +68,7 @@ func TestPluginWizardStartsCloneAndAcceptsCurrentResult(t *testing.T) {
 	}
 	result, ok := cmd().(pluginStageResult)
 	if !ok {
-		t.Fatalf("command result has unexpected type")
+		t.Fatal("command result has unexpected type")
 	}
 	updated, _ = cloning.Update(result)
 	got := updated.(Model)
@@ -218,7 +218,7 @@ func TestPluginWizardViewsExposeSecurityAndPendingDetails(t *testing.T) {
 		{pluginWizardURL, []string{"Add custom plugin", "Repository URL"}},
 		{pluginWizardCloning, []string{"Cloning repository", "Esc cancel"}},
 		{pluginWizardCandidates, []string{"Choose load file", "demo.plugin.zsh"}},
-		{pluginWizardTrust, []string{"Trust review", "executes shell code", stage.FinalDir}},
+		{pluginWizardTrust, []string{"Trust review", "executes shell code", "Managed path"}},
 		{pluginWizardSummary, []string{"Pending plugin", "demo.plugin.zsh", "Review & Apply"}},
 	}
 	for _, check := range checks {
@@ -230,6 +230,11 @@ func TestPluginWizardViewsExposeSecurityAndPendingDetails(t *testing.T) {
 			}
 		}
 		assertViewBounds(t, model.View(), model.width, model.height)
+	}
+
+	model.pluginWizard.Step = pluginWizardTrust
+	if plain := plainText(model.pluginWizardTrustView()); !strings.Contains(plain, stage.FinalDir) {
+		t.Fatalf("trust view lost full managed path %q:\n%s", stage.FinalDir, plain)
 	}
 	_ = stage.Cleanup()
 }
