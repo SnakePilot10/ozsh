@@ -219,7 +219,7 @@ func TestPluginWizardViewsExposeSecurityAndPendingDetails(t *testing.T) {
 		{pluginWizardCloning, []string{"Cloning repository", "Esc cancel"}},
 		{pluginWizardCandidates, []string{"Choose load file", "demo.plugin.zsh"}},
 		{pluginWizardTrust, []string{"Trust review", "executes shell code", "Managed path"}},
-		{pluginWizardSummary, []string{"Pending plugin", "demo.plugin.zsh", "Review & Apply"}},
+		{pluginWizardSummary, []string{"Pending plugin", "demo.plugin.zsh", "Enter queue plugin"}},
 	}
 	for _, check := range checks {
 		model.pluginWizard.Step = check.step
@@ -235,6 +235,10 @@ func TestPluginWizardViewsExposeSecurityAndPendingDetails(t *testing.T) {
 	model.pluginWizard.Step = pluginWizardTrust
 	if plain := plainText(model.pluginWizardTrustView()); !strings.Contains(plain, stage.FinalDir) {
 		t.Fatalf("trust view lost full managed path %q:\n%s", stage.FinalDir, plain)
+	}
+	model.pluginWizard.Step = pluginWizardSummary
+	if plain := plainText(model.pluginWizardSummaryView()); !strings.Contains(plain, "Review & Apply") {
+		t.Fatalf("summary view lost activation notice:\n%s", plain)
 	}
 	_ = stage.Cleanup()
 }
