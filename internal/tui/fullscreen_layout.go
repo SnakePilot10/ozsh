@@ -164,7 +164,7 @@ func screenFooter(tab int) string {
 	case tabThemes:
 		return renderHint("up/down choose  ·  enter apply  ·  [/] Circuit  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
 	case tabPlugins:
-		return renderHint("space toggle  ·  i install  ·  x advanced  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+		return renderHint("a add custom  ·  space enable  ·  t/u trust  ·  l load file  ·  d remove  ·  Ctrl+A apply  ·  Ctrl+C quit")
 	case tabPreview:
 		return renderHint("[/] scenario  ·  up/down field  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
 	default:
