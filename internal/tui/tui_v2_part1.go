@@ -78,11 +78,11 @@ type Model struct {
 	promptEditingName bool
 	promptAdvanced    bool
 
-	pluginWizard       pluginWizardModel
-	pluginChanges      plugins.ChangeSet
-	pluginCloneRunner  plugins.CloneRunner
-	pluginRemoveConfirm bool
-	pluginRemoveName   string
+	pluginWizard		pluginWizardModel
+	pluginChanges		plugins.ChangeSet
+	pluginCloneRunner	plugins.CloneRunner
+	pluginRemoveConfirm	bool
+	pluginRemoveName	string
 
 	// Legacy fields stay internal until the lifecycle migration removes the old
 	// direct-add helpers and their compatibility tests.
