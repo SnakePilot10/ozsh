@@ -78,9 +78,11 @@ type Model struct {
 	promptEditingName bool
 	promptAdvanced    bool
 
-	pluginWizard      pluginWizardModel
-	pluginChanges     plugins.ChangeSet
-	pluginCloneRunner plugins.CloneRunner
+	pluginWizard       pluginWizardModel
+	pluginChanges      plugins.ChangeSet
+	pluginCloneRunner  plugins.CloneRunner
+	pluginRemoveConfirm bool
+	pluginRemoveName    string
 
 	// Legacy fields stay internal until the lifecycle migration removes the old
 	// direct-add helpers and their compatibility tests.
@@ -194,6 +196,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" || (msg.String() == "q" && !m.promptEditingName && m.tab != tabPreview && m.tab != tabPlugins) {
 			return m, tea.Quit
+		}
+		if m.pluginRemoveConfirm {
+			return m.updatePluginRemoveConfirmation(msg)
 		}
 		if m.pluginWizard.Step != pluginWizardClosed {
 			return m.updatePluginWizard(msg)
@@ -334,6 +339,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.doctorOpen = true
 				m.confirmDoctor = false
 				m.confirmApply = false
+			} else if m.tab == tabPlugins {
+				m.openPluginRemovalAtCursor()
 			}
 		case "f":
 			if m.tab == tabHome {
@@ -413,6 +420,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.cfg.Prompt.Layout = config.PromptLayoutTwoLine
 					m.cfg.Prompt.Newline = true
 				}
+			} else if m.tab == tabPlugins {
+				item, ok := m.selectedPluginListItem()
+				if !ok || item.Kind != pluginItemCustom {
+					m.msg = "select a custom plugin to change its load file"
+				} else if err := m.openLoadFilePicker(item); err != nil {
+					m.msg = "plugin load-file error: " + err.Error()
+				}
 			}
 		case "o":
 			if m.tab == tabPrompt {
@@ -423,7 +437,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.promptAdvanced = !m.promptAdvanced
 			}
 		case "?":
-			m.msg = "1-5 screens | arrows move | a review & apply | d doctor | q quit"
+			m.msg = "1-5 screens | arrows move | Ctrl+A review & apply | d doctor/remove | q quit"
 		}
 	}
 	return m, nil
