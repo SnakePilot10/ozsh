@@ -228,7 +228,7 @@ func (m Model) updatePluginWizardSummary(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.pluginWizard.Error = "selected plugin candidate is unavailable"
 			return m, nil
 		}
-		load := stage.Candidates[m.pluginWizard.Candidate].Path
+		load := stage.Candidates[m.pluginWizard.Candidate].RelativePath
 		if err := m.pluginChanges.QueueAdd(m.cfg, *stage, load); err != nil {
 			m.pluginWizard.Error = fmt.Sprintf("queue plugin: %v", err)
 			return m, nil
