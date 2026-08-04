@@ -110,6 +110,8 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 	viewSpec.contentHeight = spec.workspaceContentHeight
 
 	switch {
+	case m.pluginWizard.Step != pluginWizardClosed:
+		return m.pluginWizardWorkspace(viewSpec)
 	case m.busy && m.operation == "plugins":
 		return "Installing plugins…\n\nCloning and validating the selected repositories."
 	case m.busy && m.operation == "font":
