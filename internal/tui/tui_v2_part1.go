@@ -78,6 +78,12 @@ type Model struct {
 	promptEditingName bool
 	promptAdvanced    bool
 
+	pluginWizard      pluginWizardModel
+	pluginChanges     plugins.ChangeSet
+	pluginCloneRunner plugins.CloneRunner
+
+	// Legacy fields stay internal until the lifecycle migration removes the old
+	// direct-add helpers and their compatibility tests.
 	pluginURL      textinput.Model
 	pluginLoad     textinput.Model
 	pluginFocus    int
@@ -112,13 +118,15 @@ func NewModel(cfg *config.Config) Model {
 	promptName.SetValue(cfg.Prompt.DisplayName)
 
 	m := Model{
-		cfg:             cfg,
-		previewCtx:      initialPreview,
-		inputs:          inputs,
-		previewScenario: 1,
-		promptName:      promptName,
-		pluginURL:       pluginURL,
-		pluginLoad:      pluginLoad,
+		cfg:               cfg,
+		previewCtx:        initialPreview,
+		inputs:            inputs,
+		previewScenario:   1,
+		promptName:        promptName,
+		pluginWizard:      newPluginWizardModel(),
+		pluginCloneRunner: plugins.ExecCloneRunner{},
+		pluginURL:         pluginURL,
+		pluginLoad:        pluginLoad,
 	}
 	m.syncCursor()
 	return m
@@ -132,6 +140,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
+	case pluginStageResult:
+		return m.handlePluginStageResult(msg)
 	case applyResult:
 		m.busy = false
 		m.operation = ""
@@ -184,6 +194,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" || (msg.String() == "q" && !m.promptEditingName && m.tab != tabPreview && m.tab != tabPlugins) {
 			return m, tea.Quit
+		}
+		if m.pluginWizard.Step != pluginWizardClosed {
+			return m.updatePluginWizard(msg)
 		}
 		if m.busy {
 			return m, nil
@@ -285,7 +298,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "a":
-			m.openApplyReview()
+			if m.tab == tabPlugins {
+				m.openPluginWizard()
+			} else {
+				m.openApplyReview()
+			}
 		case "y":
 			if m.confirmApply && !m.busy {
 				m.busy = true
@@ -507,7 +524,7 @@ func (m Model) selectionCount() int {
 	case tabThemes:
 		return len(themecatalog.List())
 	case tabPlugins:
-		return len(plugins.Catalog()) + len(m.customPluginIndices())
+		return len(m.pluginListItems())
 	case tabPreview:
 		return len(m.inputs)
 	default:
