@@ -218,7 +218,7 @@ func TestCustomPluginRemoveConfirmationQueuesOnApproval(t *testing.T) {
 	}
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	model = updated.(Model)
-	if model.pluginRemoveConfirm || !model.pluginChanges.Empty() == false {
+	if model.pluginRemoveConfirm || model.pluginChanges.Empty() {
 		t.Fatalf("remove confirmation remained or no change queued: confirm=%v changes=%#v", model.pluginRemoveConfirm, model.pluginChanges)
 	}
 	_, removes := model.pluginChanges.Counts()
