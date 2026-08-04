@@ -244,7 +244,7 @@ func (m Model) pluginLibraryPanel() string {
 		if configured.Enabled {
 			check = "[x]"
 		}
-		row := fmt.Sprintf("%s %s %s", check, configured.Name, customPluginStateBadge(configured))
+		row := fmt.Sprintf("%s %s %s", check, configured.Name, customPluginStateBadge(configured, item.Pending))
 		b.WriteString(m.renderPluginListRow(index, row))
 		b.WriteByte('\n')
 	}
@@ -284,7 +284,10 @@ func pluginStateBadge(status plugins.Status) string {
 	return style.Render(label)
 }
 
-func customPluginStateBadge(item config.PluginItem) string {
+func customPluginStateBadge(item config.PluginItem, pending bool) string {
+	if pending {
+		return accentStyle.Render("[pending]")
+	}
 	label := "[attention]"
 	style := errorStyle
 	switch {
@@ -353,12 +356,16 @@ func (m Model) writeSelectedCustomPluginPanel(b *strings.Builder, selected plugi
 		return
 	}
 	item := m.cfg.Plugins.Items[selected.ConfigIndex]
-	active := customPluginActive(item)
+	active := !selected.Pending && customPluginActive(item)
+	state := customPluginStateLabel(item)
+	if selected.Pending {
+		state = "Pending"
+	}
 	b.WriteString(accentStyle.Render(item.Name))
 	b.WriteString("\n")
 	b.WriteString("Custom plugin managed by ozsh.")
 	b.WriteString("\n\n")
-	b.WriteString(renderKeyValue("State", customPluginStateLabel(item)))
+	b.WriteString(renderKeyValue("State", state))
 	b.WriteString("\n")
 	b.WriteString(renderKeyValue("Managed path", item.Source))
 	b.WriteString("\n")
@@ -369,6 +376,16 @@ func (m Model) writeSelectedCustomPluginPanel(b *strings.Builder, selected plugi
 	b.WriteString(renderKeyValue("Enabled", yesNo(item.Enabled)))
 	b.WriteString("\n")
 	b.WriteString(renderKeyValue("Active", yesNo(active)))
+	b.WriteString("\n\n")
+	b.WriteString(renderGroupLabel("Actions"))
+	b.WriteString("\n")
+	b.WriteString("[space] Enable/disable")
+	b.WriteString("\n")
+	b.WriteString("[t/u] Trust/remove trust")
+	b.WriteString("\n")
+	b.WriteString("[l] Change load file")
+	b.WriteString("\n")
+	b.WriteString("[d] Remove plugin")
 }
 
 func customPluginStateLabel(item config.PluginItem) string {
