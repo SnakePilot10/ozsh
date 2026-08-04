@@ -22,7 +22,7 @@ func TestApplyRequiresConfirmation(t *testing.T) {
 
 	model := NewModel(config.Default())
 	model.tab = 3
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
 	model = updated.(Model)
 
 	if !model.confirmApply {
