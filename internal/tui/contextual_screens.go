@@ -189,7 +189,7 @@ func themePaletteLines(preset themecatalog.Preset) string {
 
 func (m Model) pluginsWorkspace(spec layoutSpec) string {
 	var body strings.Builder
-	body.WriteString(renderSectionHeader("Plugins", "Recommended and custom Zsh extensions"))
+	body.WriteString(renderSectionHeader("Plugins", "Recommended setup · Custom Zsh extensions"))
 	body.WriteString("\n\n")
 	list := m.pluginLibraryPanel()
 	details := m.selectedPluginPanel()
