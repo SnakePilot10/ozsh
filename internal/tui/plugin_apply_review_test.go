@@ -8,7 +8,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/snakepilot10/ozsh/internal/config"
-	"github.com/snakepilot10/ozsh/internal/plugins"
 	"github.com/snakepilot10/ozsh/internal/shell"
 )
 
@@ -16,8 +15,7 @@ func TestApplyReviewSnapshotsAndListsPendingPluginChanges(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	writeReviewZshrc(t)
 	stage := wizardStageFixture(t, "demo", "demo.plugin.zsh")
-	cfg := config.Default()
-	model := NewModel(cfg)
+	model := NewModel(config.Default())
 	if err := model.pluginChanges.QueueAdd(model.cfg, stage, "demo.plugin.zsh"); err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +27,7 @@ func TestApplyReviewSnapshotsAndListsPendingPluginChanges(t *testing.T) {
 		t.Fatalf("reviewed counts = %d add, %d remove", adds, removes)
 	}
 	plain := plainText(model.pendingPluginReview())
-	for _, expected := range []string{"Plugin changes", "1 add", "0 remove", "demo", "demo.plugin.zsh", stage.Repository.URL} {
+	for _, expected := range []string{"Plugin changes", "1 add", "0 remove", "demo", "demo.plugin.zsh", stage.Repository.URL, stage.FinalDir} {
 		if !strings.Contains(plain, expected) {
 			t.Fatalf("review lost %q:\n%s", expected, plain)
 		}
@@ -156,6 +154,7 @@ func TestApplyReviewListsPendingRemoval(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	writeReviewZshrc(t)
 	cfg := lifecycleCustomPluginConfig(t, "old", true, true, "old.zsh")
+	removedPath := cfg.Plugins.Items[0].Source
 	model := NewModel(cfg)
 	if err := model.pluginChanges.QueueRemove(model.cfg, "old"); err != nil {
 		t.Fatal(err)
@@ -163,11 +162,10 @@ func TestApplyReviewListsPendingRemoval(t *testing.T) {
 	model.openApplyReview()
 
 	plain := plainText(model.pendingPluginReview())
-	for _, expected := range []string{"0 add", "1 remove", "old", cfg.Plugins.Items} {
-		_ = expected
-	}
-	if !strings.Contains(plain, "old") || !strings.Contains(plain, "remove") {
-		t.Fatalf("removal review is incomplete:\n%s", plain)
+	for _, expected := range []string{"Plugin changes", "0 add", "1 remove", "old", removedPath} {
+		if !strings.Contains(plain, expected) {
+			t.Fatalf("removal review lost %q:\n%s", expected, plain)
+		}
 	}
 }
 
@@ -177,5 +175,3 @@ func writeReviewZshrc(t *testing.T) {
 		t.Fatalf("WriteFile(.zshrc) error = %v", err)
 	}
 }
-
-var _ = plugins.ChangeSet{}
