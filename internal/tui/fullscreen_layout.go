@@ -130,7 +130,9 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 		return m.pluginInstallConfirmation()
 	case m.confirmApply && m.showApplyTechnical && m.reviewedConfig != nil:
 		return m.technicalApplyWorkspace()
-	case m.confirmApply || m.busy:
+	case m.confirmApply:
+		return m.appendPendingPluginReview(m.apply(), viewSpec)
+	case m.busy:
 		return m.apply()
 	case m.doctorOpen:
 		return m.doctor()
