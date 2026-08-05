@@ -141,17 +141,57 @@ variants. Use `--variant <name>` with `theme preview` or `theme apply`.
 ## Plugins
 
 Fresh configurations select `zsh-autosuggestions`, `fzf-tab`, and
-`zsh-syntax-highlighting`. The TUI shows one confirmation before downloading
-them. Completion initializes before `fzf-tab`, and syntax highlighting always
-loads last.
+`zsh-syntax-highlighting`. They appear under **Recommended plugins** in the TUI.
+The recommended set is curated by ozsh, remains deselectable, and is downloaded
+only after explicit confirmation. Completion initializes before `fzf-tab`, and
+syntax highlighting always loads last.
 
-Plugins are cloned into `~/.config/ozsh/plugins/`. Only HTTPS repository URLs
-are accepted. A plugin load path must be a relative `.zsh` or `.sh` file.
+Custom repositories appear separately under **Custom plugins**. Press
+`[a] Add custom plugin` from the Plugins screen to open the guided workflow:
+
+1. Enter an HTTPS GitHub repository URL. Other schemes, malformed URLs,
+   duplicate repositories, and destination conflicts are rejected.
+2. ozsh performs a shallow clone into a private `.staging-*` directory below
+   `~/.config/ozsh/plugins/`.
+3. The checkout is scanned with bounded depth and file-count limits. Generated,
+   dependency, VCS, symlink, and unsafe paths are excluded.
+4. Choose the `.plugin.zsh`, `.zsh`, or `.sh` file that should be sourced.
+5. Review the trust warning and explicitly approve the repository.
+6. The plugin is shown as pending. Nothing is moved into its final directory or
+   loaded by Zsh until **Review & Apply** succeeds.
+
+The Plugins screen supports the complete pending lifecycle:
+
+- `Space`: enable or disable the selected plugin.
+- `t` / `u`: grant or remove trust from a custom plugin.
+- `l`: choose a different load file from the managed checkout.
+- `d`: queue removal of a custom plugin.
+- `Ctrl+A`: inspect all pending configuration and filesystem changes, then
+  confirm or cancel them together.
+
+Review & Apply lists each addition or removal, including repository, load file,
+and final or removed path. Apply snapshots the reviewed state and treats plugin
+moves, generated shell files, configuration, and `.zshrc` injection as one
+reversible transaction. A failed Apply restores the previous files and plugin
+locations while preserving the pending model for retry. Cancelling leaves the
+staged checkout untouched; exiting the TUI cleans any unapplied `.staging-*`
+directories.
+
+`~/.config/ozsh/plugins/` is owned and managed by ozsh. Final custom checkouts
+live at `~/.config/ozsh/plugins/<plugin-name>/`; temporary clones use direct
+`.staging-*` children. Do not place unrelated files in that directory or rename
+managed plugin folders behind ozsh.
+
 Generated shell code sources a plugin only when it is enabled, explicitly
-trusted, readable, a regular file under `$HOME`, and not a symlink.
+trusted, readable, a regular file under `$HOME`, and not a symlink. Trust is not
+a sandbox: **a trusted shell plugin executes third-party code in every
+interactive Zsh session**. Review the repository and selected load file before
+approving it.
 
-Trusting a plugin means allowing third-party code to execute in Zsh. Review it
-before running `ozsh plugin trust <name>`.
+The CLI plugin commands remain available for scripted administration, but the
+TUI is the recommended path when adding an unfamiliar repository because it
+shows candidate discovery, trust, pending state, and the final transaction
+before activation.
 
 ## TUI
 
@@ -160,11 +200,21 @@ Plugins, and Preview. Doctor, backup recovery, and the optional Nerd Font
 installer live under Home. Review & Apply is a global modal and never writes
 `.zshrc` before final confirmation.
 
+The interface uses the terminal's own background for application chrome.
+Selection remains visible through accent text, borders, markers, bold text, and
+underline rather than filled gray rectangles. Intentional background colors are
+reserved for prompt segments that belong to the selected theme.
+
 The layout adapts below 72 columns for Termux and other narrow terminals. The
-font dialog offers JetBrainsMono, MesloLGS, and FiraCode Nerd Font from pinned,
-SHA-256-verified archives. Termux activation backs up `~/.termux/font.ttf` and
-reloads settings; Linux installs the font for the current user and asks you to
-select it in terminal settings.
+Plugins screen keeps **Custom plugins** and `[a] Add custom plugin` discoverable
+at narrow widths, while the add wizard owns keyboard focus until it is completed
+or cancelled. Review & Apply displays pending plugin counts and paths before the
+optional technical `.zshrc` diff.
+
+The font dialog offers JetBrainsMono, MesloLGS, and FiraCode Nerd Font from
+pinned, SHA-256-verified archives. Termux activation backs up
+`~/.termux/font.ttf` and reloads settings; Linux installs the font for the
+current user and asks you to select it in terminal settings.
 
 ## Termux
 
