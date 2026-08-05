@@ -49,24 +49,25 @@ type Model struct {
 	width  int
 	height int
 
-	confirmApply       bool
-	confirmPlugins     bool
-	confirmFont        bool
-	confirmBackup      bool
-	confirmDoctor      bool
-	confirmFontRestore bool
-	applyDiff          string
-	reviewedConfig     *config.Config
-	showApplyTechnical bool
-	busy               bool
-	operation          string
-	doctorOpen         bool
-	themeVariant       int
-	fontOpen           bool
-	fontCursor         int
-	backupOpen         bool
-	backupCursor       int
-	backupPaths        []string
+	confirmApply         bool
+	confirmPlugins       bool
+	confirmFont          bool
+	confirmBackup        bool
+	confirmDoctor        bool
+	confirmFontRestore   bool
+	applyDiff            string
+	reviewedConfig       *config.Config
+	reviewedPluginChanges plugins.ChangeSet
+	showApplyTechnical   bool
+	busy                 bool
+	operation            string
+	doctorOpen           bool
+	themeVariant         int
+	fontOpen             bool
+	fontCursor           int
+	backupOpen           bool
+	backupCursor         int
+	backupPaths          []string
 
 	previewCtx        prompt.PreviewContext
 	inputs            []textinput.Model
@@ -97,8 +98,14 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(NewModel(cfg), tea.WithAltScreen()).Run()
-	return err
+	final, runErr := tea.NewProgram(NewModel(cfg), tea.WithAltScreen()).Run()
+	if model, ok := final.(Model); ok {
+		cleanupErr := model.pluginChanges.Cleanup()
+		if runErr == nil && cleanupErr != nil {
+			return cleanupErr
+		}
+	}
+	return runErr
 }
 
 func NewModel(cfg *config.Config) Model {
@@ -148,8 +155,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.busy = false
 		m.operation = ""
 		m.reviewedConfig = nil
+		m.reviewedPluginChanges = plugins.ChangeSet{}
 		m.showApplyTechnical = false
 		m.msg = string(msg)
+		return m, nil
+	case pluginApplyResult:
+		m.busy = false
+		m.operation = ""
+		m.reviewedConfig = nil
+		m.reviewedPluginChanges = plugins.ChangeSet{}
+		m.showApplyTechnical = false
+		if msg.err != nil {
+			m.msg = "apply error: " + msg.err.Error()
+			return m, nil
+		}
+		m.pluginChanges = plugins.ChangeSet{}
+		m.msg = "applied"
 		return m, nil
 	case pluginInstallResult:
 		m.busy = false
@@ -466,6 +487,7 @@ func (m *Model) openApplyReview() {
 	}
 	m.applyDiff = shell.DiffLines(before, after)
 	m.reviewedConfig = cloneConfig(m.cfg)
+	m.reviewedPluginChanges = m.pluginChanges.Clone()
 	m.showApplyTechnical = false
 	m.confirmApply = true
 	m.confirmPlugins = false
@@ -478,19 +500,22 @@ func (m Model) updateApplyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y", "enter":
 		if m.reviewedConfig == nil {
 			m.confirmApply = false
+			m.reviewedPluginChanges = plugins.ChangeSet{}
 			m.msg = "apply review expired; open it again"
 			return m, nil
 		}
 		snapshot := cloneConfig(m.reviewedConfig)
+		changeSnapshot := m.reviewedPluginChanges.Clone()
 		m.cfg = cloneConfig(snapshot)
 		m.busy = true
 		m.operation = "apply"
 		m.confirmApply = false
 		m.msg = ""
-		return m, doApply(snapshot)
+		return m, doApplyWithPlugins(snapshot, changeSnapshot)
 	case "n", "esc":
 		m.confirmApply = false
 		m.reviewedConfig = nil
+		m.reviewedPluginChanges = plugins.ChangeSet{}
 		m.showApplyTechnical = false
 		m.msg = "apply cancelled"
 	case "t":
