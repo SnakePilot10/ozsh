@@ -49,25 +49,25 @@ type Model struct {
 	width  int
 	height int
 
-	confirmApply         bool
-	confirmPlugins       bool
-	confirmFont          bool
-	confirmBackup        bool
-	confirmDoctor        bool
-	confirmFontRestore   bool
-	applyDiff            string
-	reviewedConfig       *config.Config
+	confirmApply          bool
+	confirmPlugins        bool
+	confirmFont           bool
+	confirmBackup         bool
+	confirmDoctor         bool
+	confirmFontRestore    bool
+	applyDiff             string
+	reviewedConfig        *config.Config
 	reviewedPluginChanges plugins.ChangeSet
-	showApplyTechnical   bool
-	busy                 bool
-	operation            string
-	doctorOpen           bool
-	themeVariant         int
-	fontOpen             bool
-	fontCursor           int
-	backupOpen           bool
-	backupCursor         int
-	backupPaths          []string
+	showApplyTechnical    bool
+	busy                  bool
+	operation             string
+	doctorOpen            bool
+	themeVariant          int
+	fontOpen              bool
+	fontCursor            int
+	backupOpen            bool
+	backupCursor          int
+	backupPaths           []string
 
 	previewCtx        prompt.PreviewContext
 	inputs            []textinput.Model
