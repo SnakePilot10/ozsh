@@ -220,14 +220,6 @@ func (m Model) customPluginIndices() []int {
 	return indices
 }
 
-func (m Model) customPluginIndexAtCursor() (int, bool) {
-	item, ok := m.selectedPluginListItem()
-	if !ok || item.Kind != pluginItemCustom || item.ConfigIndex < 0 {
-		return 0, false
-	}
-	return item.ConfigIndex, true
-}
-
 func (m Model) missingSelectedPlugins() int {
 	missing := 0
 	for _, definition := range plugins.Catalog() {
