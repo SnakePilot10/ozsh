@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,15 +26,8 @@ func doApplyWithPlugins(cfg *config.Config, changes plugins.ChangeSet) tea.Cmd {
 	}
 }
 
-func (m Model) reviewedPluginChangesSnapshot() plugins.ChangeSet {
-	return m.pluginWizard.ReviewChanges.Clone()
-}
-
 func (m Model) pendingPluginReview() string {
-	changes := m.pluginWizard.ReviewChanges
-	if changes.Empty() {
-		changes = m.pluginChanges
-	}
+	changes := m.reviewedPluginChanges
 	adds, removes := changes.Counts()
 
 	var body strings.Builder
@@ -43,17 +35,17 @@ func (m Model) pendingPluginReview() string {
 	body.WriteString("\n")
 	body.WriteString(fmt.Sprintf("%d add · %d remove", adds, removes))
 
-	for _, add := range changes.Adds {
+	for _, addition := range changes.Adds {
 		body.WriteString("\n\n")
-		body.WriteString(accentStyle.Render("+ " + changeString(add, "Name")))
-		writeChangeDetail(&body, "Repository", changeString(add, "RepositoryURL", "URL"))
-		writeChangeDetail(&body, "Load file", changeString(add, "Load"))
-		writeChangeDetail(&body, "Final path", changeString(add, "FinalDir", "Destination", "Source"))
+		body.WriteString(accentStyle.Render("+ " + addition.Name))
+		writeChangeDetail(&body, "Repository", addition.RepositoryURL)
+		writeChangeDetail(&body, "Load file", addition.Load)
+		writeChangeDetail(&body, "Final path", addition.FinalDir)
 	}
 	for _, removal := range changes.Removes {
 		body.WriteString("\n\n")
-		body.WriteString(errorStyle.Render("- " + changeString(removal, "Name")))
-		writeChangeDetail(&body, "Remove path", changeString(removal, "Source", "OriginalSource", "FinalDir"))
+		body.WriteString(errorStyle.Render("- " + removal.Name))
+		writeChangeDetail(&body, "Remove path", removal.Source)
 	}
 	if adds == 0 && removes == 0 {
 		body.WriteString("\n")
@@ -63,11 +55,17 @@ func (m Model) pendingPluginReview() string {
 }
 
 func (m Model) appendPendingPluginReview(base string, spec layoutSpec) string {
-	changes := m.pluginWizard.ReviewChanges
-	if changes.Empty() {
+	if m.reviewedPluginChanges.Empty() {
 		return base
 	}
-	return fitHeight(base+"\n\n"+m.pendingPluginReview(), spec.contentWidth, spec.workspaceHeight)
+	review := m.pendingPluginReview()
+	const marker = "\n\n[t] Technical details"
+	if strings.Contains(base, marker) {
+		base = strings.Replace(base, marker, "\n\n"+review+marker, 1)
+	} else {
+		base += "\n\n" + review
+	}
+	return fitHeight(base, spec.contentWidth, spec.workspaceHeight)
 }
 
 func writeChangeDetail(body *strings.Builder, label, value string) {
@@ -77,56 +75,4 @@ func writeChangeDetail(body *strings.Builder, label, value string) {
 	}
 	body.WriteString("\n")
 	body.WriteString(renderKeyValue(label, value))
-}
-
-func changeString(value any, names ...string) string {
-	visited := map[uintptr]bool{}
-	for _, name := range names {
-		if result := findNamedString(reflect.ValueOf(value), name, visited, 0); result != "" {
-			return result
-		}
-	}
-	return "unknown"
-}
-
-func findNamedString(value reflect.Value, name string, visited map[uintptr]bool, depth int) string {
-	if !value.IsValid() || depth > 4 {
-		return ""
-	}
-	for value.Kind() == reflect.Interface || value.Kind() == reflect.Pointer {
-		if value.IsNil() {
-			return ""
-		}
-		if value.Kind() == reflect.Pointer {
-			pointer := value.Pointer()
-			if pointer != 0 && visited[pointer] {
-				return ""
-			}
-			if pointer != 0 {
-				visited[pointer] = true
-			}
-		}
-		value = value.Elem()
-	}
-	if value.Kind() != reflect.Struct {
-		return ""
-	}
-	if field := value.FieldByName(name); field.IsValid() && field.Kind() == reflect.String {
-		return strings.TrimSpace(field.String())
-	}
-	typeInfo := value.Type()
-	for index := 0; index < value.NumField(); index++ {
-		fieldInfo := typeInfo.Field(index)
-		if fieldInfo.PkgPath != "" {
-			continue
-		}
-		field := value.Field(index)
-		switch field.Kind() {
-		case reflect.Struct, reflect.Pointer, reflect.Interface:
-			if result := findNamedString(field, name, visited, depth+1); result != "" {
-				return result
-			}
-		}
-	}
-	return ""
 }
