@@ -56,6 +56,9 @@ func (m Model) formAllowsGlobalNavigation(msg tea.KeyMsg) bool {
 }
 
 func (m *Model) focusPreviewInput() {
+	if !m.previewEditing {
+		m.inputFocus = wrapIndex(m.previewScenario-1, len(m.inputs))
+	}
 	for i := range m.inputs {
 		if m.previewEditing && i == m.inputFocus {
 			m.inputs[i].Focus()
