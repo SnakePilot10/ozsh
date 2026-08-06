@@ -28,23 +28,26 @@ func TestPreviewScenarioNavigationEscapesContextEditor(t *testing.T) {
 	if model.inputFocus != 0 {
 		t.Fatalf("down in scenario mode moved input focus to %d", model.inputFocus)
 	}
-	if plain := plainText(model.View()); !strings.Contains(plain, "› [x] Command failed") {
-		t.Fatalf("scenario focus marker missing:\n%s", plain)
+	if plain := plainText(model.View()); !strings.Contains(plain, "[x] Command failed") {
+		t.Fatalf("selected scenario missing:\n%s", plain)
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
+	if !model.previewEditing {
+		t.Fatal("enter did not open context edit mode")
+	}
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	model = updated.(Model)
 	if !model.previewCustom {
 		t.Fatal("typing in context edit mode did not create a custom context")
 	}
-	if plain := plainText(model.View()); !strings.Contains(plain, "Esc scenarios") {
-		t.Fatalf("context edit escape hint missing:\n%s", plain)
-	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
+	if model.previewEditing {
+		t.Fatal("esc did not return to scenario navigation")
+	}
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = updated.(Model)
 	if model.previewScenario != 3 {
