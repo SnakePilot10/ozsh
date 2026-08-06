@@ -133,7 +133,7 @@ func renderGroupLabel(label string) string {
 }
 
 func renderKeyValue(label, value string) string {
-	return lipgloss.JoinHorizontal(lipgloss.Top, keyStyle.Render(label), valueStyle.Render(value))
+	return lipgloss.JoinHorizontal(lipgloss.Top, keyStyle.Render(label), " ", valueStyle.Render(value))
 }
 
 func renderHint(text string) string {

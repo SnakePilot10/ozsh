@@ -43,6 +43,8 @@ const (
 type Model struct {
 	cfg *config.Config
 
+	termuxUsabilityState
+
 	tab    int
 	cursor int
 	msg    string
@@ -149,6 +151,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
+	case fontProgressMsg:
+		m.fontDownloaded = msg.Downloaded
+		m.fontTotal = msg.Total
+		if m.fontEvents == nil {
+			return m, nil
+		}
+		return m, waitForFontInstall(m.fontEvents)
 	case pluginStageResult:
 		return m.handlePluginStageResult(msg)
 	case applyResult:
@@ -185,6 +194,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fontInstallResult:
 		m.busy = false
 		m.operation = ""
+		m.fontEvents = nil
+		m.fontDownloaded = 0
+		m.fontTotal = 0
+		m.fontName = ""
 		if msg.err != nil {
 			m.msg = "font install error: " + msg.err.Error()
 			return m, nil
@@ -534,6 +547,9 @@ func (m *Model) setTab(tab int) {
 	m.tab = tab
 	m.cursor = 0
 	m.themeVariant = 0
+	if tab == tabPreview {
+		m.previewEditing = false
+	}
 	m.syncCursor()
 }
 
@@ -581,7 +597,9 @@ func (m *Model) syncCursor() {
 		m.cursor = 0
 	}
 	if m.tab == tabPreview {
-		m.inputFocus = m.cursor
+		if m.previewEditing {
+			m.inputFocus = m.cursor
+		}
 		m.focusPreviewInput()
 	}
 	if m.tab == tabPlugins {

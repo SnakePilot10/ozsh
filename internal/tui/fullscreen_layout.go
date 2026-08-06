@@ -117,7 +117,7 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 	case m.busy && m.operation == "plugins":
 		return "Installing plugins…\n\nCloning and validating the selected repositories."
 	case m.busy && m.operation == "font":
-		return "Installing Nerd Font…\n\nDownloading, verifying SHA-256, and activating the font."
+		return m.fontInstallWorkspace(viewSpec)
 	case m.busy && m.operation == "font-restore":
 		return "Restoring previous Termux font…"
 	case m.busy && m.operation == "backup":
@@ -172,7 +172,7 @@ func screenFooter(tab int) string {
 	case tabPlugins:
 		return renderHint("a add custom  ·  space enable  ·  t/u trust  ·  l load file  ·  d remove  ·  Ctrl+A apply  ·  Ctrl+C quit")
 	case tabPreview:
-		return renderHint("[/] scenario  ·  up/down field  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+		return renderHint("up/down scenario  ·  enter edit  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
 	default:
 		return renderHint("Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
 	}
