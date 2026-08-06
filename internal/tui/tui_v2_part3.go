@@ -217,20 +217,42 @@ func (m *Model) moveSegment(delta int) {
 }
 
 func (m Model) updatePreviewInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	key, isKey := msg.(tea.KeyMsg)
+	if !m.previewEditing {
+		if !isKey {
+			return m, nil
+		}
 		switch key.String() {
+		case "[", "up", "k":
+			m.setPreviewScenario(m.previewScenario - 1)
+		case "]", "down", "j":
+			m.setPreviewScenario(m.previewScenario + 1)
+		case "enter":
+			m.previewEditing = true
+			m.cursor = m.inputFocus
+			m.focusPreviewInput()
+		}
+		return m, nil
+	}
+
+	if isKey {
+		switch key.String() {
+		case "esc":
+			m.previewEditing = false
+			m.focusPreviewInput()
+			return m, nil
 		case "[":
 			m.setPreviewScenario(m.previewScenario - 1)
 			return m, nil
 		case "]":
 			m.setPreviewScenario(m.previewScenario + 1)
 			return m, nil
-		case "down":
+		case "tab", "down":
 			m.inputFocus = wrapIndex(m.inputFocus+1, len(m.inputs))
 			m.cursor = m.inputFocus
 			m.focusPreviewInput()
 			return m, nil
-		case "up":
+		case "shift+tab", "up":
 			m.inputFocus = wrapIndex(m.inputFocus-1, len(m.inputs))
 			m.cursor = m.inputFocus
 			m.focusPreviewInput()
@@ -244,7 +266,7 @@ func (m Model) updatePreviewInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.inputs[m.inputFocus], cmd = m.inputs[m.inputFocus].Update(msg)
 	m.syncPreviewInputs()
-	if key, ok := msg.(tea.KeyMsg); ok && key.Type == tea.KeyRunes {
+	if isKey && (key.Type == tea.KeyRunes || key.Type == tea.KeyBackspace || key.Type == tea.KeyDelete) {
 		m.previewCustom = true
 	}
 	return m, cmd
@@ -273,6 +295,7 @@ func (m *Model) setPreviewScenario(index int) {
 	m.inputFocus = 0
 	m.cursor = 0
 	m.previewCustom = false
+	m.previewEditing = false
 	m.previewError = ""
 	m.focusPreviewInput()
 }
@@ -331,7 +354,11 @@ func (m Model) updateFontDialog(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.busy = true
 			m.operation = "font"
 			m.msg = ""
-			return m, doInstallFont(m.cfg, selected)
+			m.fontName = selected.Name
+			m.fontDownloaded = 0
+			m.fontTotal = 0
+			m.fontEvents = startFontInstall(m.cfg, selected)
+			return m, waitForFontInstall(m.fontEvents)
 		case "n", "esc":
 			m.confirmFont = false
 			return m, nil
