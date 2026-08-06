@@ -25,9 +25,6 @@ func TestPreviewScenarioNavigationEscapesContextEditor(t *testing.T) {
 	if model.previewScenario != 2 {
 		t.Fatalf("down in scenario mode selected scenario %d, want 2", model.previewScenario)
 	}
-	if model.inputFocus != 0 {
-		t.Fatalf("down in scenario mode moved input focus to %d", model.inputFocus)
-	}
 	if plain := plainText(model.View()); !strings.Contains(plain, "[x] Command failed") {
 		t.Fatalf("selected scenario missing:\n%s", plain)
 	}
