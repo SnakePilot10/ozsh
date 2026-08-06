@@ -37,6 +37,9 @@ func segmentLabel(name string) string {
 func (m Model) formAllowsGlobalNavigation(msg tea.KeyMsg) bool {
 	switch m.tab {
 	case tabPreview:
+		if m.previewEditing {
+			return false
+		}
 		switch msg.String() {
 		case "tab", "shift+tab", "left", "right":
 			return true
@@ -54,7 +57,7 @@ func (m Model) formAllowsGlobalNavigation(msg tea.KeyMsg) bool {
 
 func (m *Model) focusPreviewInput() {
 	for i := range m.inputs {
-		if i == m.inputFocus {
+		if m.previewEditing && i == m.inputFocus {
 			m.inputs[i].Focus()
 		} else {
 			m.inputs[i].Blur()
@@ -162,9 +165,6 @@ func previewInputs(ctx prompt.PreviewContext) []textinput.Model {
 		input.Prompt = value.label + ": "
 		input.Placeholder = value.label
 		input.SetValue(value.value)
-		if i == 0 {
-			input.Focus()
-		}
 		inputs[i] = input
 	}
 	return inputs
