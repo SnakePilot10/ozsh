@@ -45,25 +45,6 @@ func doInstallPlugins(cfg *config.Config) tea.Cmd {
 	}
 }
 
-func doInstallFont(cfg *config.Config, font fonts.Font) tea.Cmd {
-	snapshot := cloneConfig(cfg)
-	home := os.Getenv("HOME")
-	termux := shell.IsTermux()
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-		defer cancel()
-		manager := fonts.NewManager(home, termux)
-		if err := manager.Install(ctx, font, nil); err != nil {
-			return fontInstallResult{cfg: snapshot, font: font, err: err}
-		}
-		snapshot.Prompt.IconMode = config.IconModeNerd
-		if err := config.Save(snapshot); err != nil {
-			return fontInstallResult{cfg: snapshot, font: font, err: fmt.Errorf("font installed but icon mode could not be saved: %w", err)}
-		}
-		return fontInstallResult{cfg: snapshot, font: font}
-	}
-}
-
 func doRestoreBackup(path string) tea.Cmd {
 	return func() tea.Msg { return backupRestoreResult{err: shell.RestoreBackup(path)} }
 }
