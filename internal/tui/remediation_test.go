@@ -39,7 +39,9 @@ func TestPreviewRoutesInputOnlyToFocusedField(t *testing.T) {
 	model.setTab(tabPreview)
 	beforeCwd := model.inputs[1].Value()
 
-	updated, _ := model.Update(keyRune('x'))
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	updated, _ = model.Update(keyRune('x'))
 	model = updated.(Model)
 	if !strings.HasSuffix(model.inputs[0].Value(), "x") {
 		t.Fatalf("username input was not edited: %q", model.inputs[0].Value())
@@ -60,7 +62,9 @@ func TestPreviewRoutesInputOnlyToFocusedField(t *testing.T) {
 func TestPreviewAllowsNumericExitAndDisplaysValidationError(t *testing.T) {
 	model := NewModel(config.Default())
 	model.setTab(tabPreview)
+	model.previewEditing = true
 	model.inputFocus = 3
+	model.cursor = 3
 	model.focusPreviewInput()
 	model.inputs[3].SetValue("")
 
