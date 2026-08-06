@@ -39,7 +39,6 @@ var (
 
 	tabActiveStyle = lipgloss.NewStyle().
 			Foreground(visualPalette.Accent).
-			Background(visualPalette.Surface).
 			Bold(true).
 			Underline(true)
 
@@ -69,15 +68,12 @@ var (
 
 	previewBoxStyle = lipgloss.NewStyle().
 			Foreground(visualPalette.Text).
-			Background(visualPalette.Surface).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(visualPalette.Border).
 			Padding(0, 1)
 
 	variantBadgeStyle = lipgloss.NewStyle().
-				Foreground(visualPalette.Accent).
-				Background(visualPalette.Surface).
-				Padding(0, 1)
+				Foreground(visualPalette.Accent)
 )
 
 // init upgrades the compatibility styles still used by older render helpers.
@@ -87,11 +83,13 @@ func init() {
 	mutedStyle = lipgloss.NewStyle().Foreground(visualPalette.Muted)
 	errorStyle = lipgloss.NewStyle().Foreground(visualPalette.Danger).Bold(true)
 	panelStyle = lipgloss.NewStyle().
-		Background(visualPalette.Panel).
 		Foreground(visualPalette.Text).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(visualPalette.FocusBorder).
 		Padding(1, 2)
+	selectedRowStyle = lipgloss.NewStyle().
+		Foreground(visualPalette.Accent).
+		Bold(true)
 }
 
 func renderTab(label string, active, compact bool) string {
@@ -166,5 +164,5 @@ func renderVariantBadge(variant string) string {
 	if variant == "" {
 		return ""
 	}
-	return variantBadgeStyle.Render("variant: " + variant)
+	return variantBadgeStyle.Render("[variant: " + variant + "]")
 }

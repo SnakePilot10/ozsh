@@ -49,24 +49,25 @@ type Model struct {
 	width  int
 	height int
 
-	confirmApply       bool
-	confirmPlugins     bool
-	confirmFont        bool
-	confirmBackup      bool
-	confirmDoctor      bool
-	confirmFontRestore bool
-	applyDiff          string
-	reviewedConfig     *config.Config
-	showApplyTechnical bool
-	busy               bool
-	operation          string
-	doctorOpen         bool
-	themeVariant       int
-	fontOpen           bool
-	fontCursor         int
-	backupOpen         bool
-	backupCursor       int
-	backupPaths        []string
+	confirmApply          bool
+	confirmPlugins        bool
+	confirmFont           bool
+	confirmBackup         bool
+	confirmDoctor         bool
+	confirmFontRestore    bool
+	applyDiff             string
+	reviewedConfig        *config.Config
+	reviewedPluginChanges plugins.ChangeSet
+	showApplyTechnical    bool
+	busy                  bool
+	operation             string
+	doctorOpen            bool
+	themeVariant          int
+	fontOpen              bool
+	fontCursor            int
+	backupOpen            bool
+	backupCursor          int
+	backupPaths           []string
 
 	previewCtx        prompt.PreviewContext
 	inputs            []textinput.Model
@@ -78,6 +79,14 @@ type Model struct {
 	promptEditingName bool
 	promptAdvanced    bool
 
+	pluginWizard        pluginWizardModel
+	pluginChanges       plugins.ChangeSet
+	pluginCloneRunner   plugins.CloneRunner
+	pluginRemoveConfirm bool
+	pluginRemoveName    string
+
+	// Legacy fields stay internal until the lifecycle migration removes the old
+	// direct-add helpers and their compatibility tests.
 	pluginURL      textinput.Model
 	pluginLoad     textinput.Model
 	pluginFocus    int
@@ -89,8 +98,14 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(NewModel(cfg), tea.WithAltScreen()).Run()
-	return err
+	final, runErr := tea.NewProgram(NewModel(cfg), tea.WithAltScreen()).Run()
+	if model, ok := final.(Model); ok {
+		cleanupErr := model.pluginChanges.Cleanup()
+		if runErr == nil && cleanupErr != nil {
+			return cleanupErr
+		}
+	}
+	return runErr
 }
 
 func NewModel(cfg *config.Config) Model {
@@ -112,13 +127,15 @@ func NewModel(cfg *config.Config) Model {
 	promptName.SetValue(cfg.Prompt.DisplayName)
 
 	m := Model{
-		cfg:             cfg,
-		previewCtx:      initialPreview,
-		inputs:          inputs,
-		previewScenario: 1,
-		promptName:      promptName,
-		pluginURL:       pluginURL,
-		pluginLoad:      pluginLoad,
+		cfg:               cfg,
+		previewCtx:        initialPreview,
+		inputs:            inputs,
+		previewScenario:   1,
+		promptName:        promptName,
+		pluginWizard:      newPluginWizardModel(),
+		pluginCloneRunner: plugins.ExecCloneRunner{},
+		pluginURL:         pluginURL,
+		pluginLoad:        pluginLoad,
 	}
 	m.syncCursor()
 	return m
@@ -132,12 +149,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
+	case pluginStageResult:
+		return m.handlePluginStageResult(msg)
 	case applyResult:
 		m.busy = false
 		m.operation = ""
 		m.reviewedConfig = nil
+		m.reviewedPluginChanges = plugins.ChangeSet{}
 		m.showApplyTechnical = false
 		m.msg = string(msg)
+		return m, nil
+	case pluginApplyResult:
+		m.busy = false
+		m.operation = ""
+		m.reviewedConfig = nil
+		m.reviewedPluginChanges = plugins.ChangeSet{}
+		m.showApplyTechnical = false
+		if msg.err != nil {
+			m.msg = "apply error: " + msg.err.Error()
+			return m, nil
+		}
+		m.pluginChanges = plugins.ChangeSet{}
+		m.msg = "applied"
 		return m, nil
 	case pluginInstallResult:
 		m.busy = false
@@ -184,6 +217,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" || (msg.String() == "q" && !m.promptEditingName && m.tab != tabPreview && m.tab != tabPlugins) {
 			return m, tea.Quit
+		}
+		if m.pluginRemoveConfirm {
+			return m.updatePluginRemoveConfirmation(msg)
+		}
+		if m.pluginWizard.Step != pluginWizardClosed {
+			return m.updatePluginWizard(msg)
 		}
 		if m.busy {
 			return m, nil
@@ -285,7 +324,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "a":
-			m.openApplyReview()
+			if m.tab == tabPlugins {
+				m.openPluginWizard()
+			} else {
+				m.openApplyReview()
+			}
 		case "y":
 			if m.confirmApply && !m.busy {
 				m.busy = true
@@ -317,6 +360,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.doctorOpen = true
 				m.confirmDoctor = false
 				m.confirmApply = false
+			} else if m.tab == tabPlugins {
+				m.openPluginRemovalAtCursor()
 			}
 		case "f":
 			if m.tab == tabHome {
@@ -396,6 +441,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.cfg.Prompt.Layout = config.PromptLayoutTwoLine
 					m.cfg.Prompt.Newline = true
 				}
+			} else if m.tab == tabPlugins {
+				item, ok := m.selectedPluginListItem()
+				if !ok || item.Kind != pluginItemCustom {
+					m.msg = "select a custom plugin to change its load file"
+				} else if err := m.openLoadFilePicker(item); err != nil {
+					m.msg = "plugin load-file error: " + err.Error()
+				}
 			}
 		case "o":
 			if m.tab == tabPrompt {
@@ -406,7 +458,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.promptAdvanced = !m.promptAdvanced
 			}
 		case "?":
-			m.msg = "1-5 screens | arrows move | a review & apply | d doctor | q quit"
+			m.msg = "1-5 screens | arrows move | Ctrl+A review & apply | d doctor/remove | q quit"
 		}
 	}
 	return m, nil
@@ -435,6 +487,7 @@ func (m *Model) openApplyReview() {
 	}
 	m.applyDiff = shell.DiffLines(before, after)
 	m.reviewedConfig = cloneConfig(m.cfg)
+	m.reviewedPluginChanges = m.pluginChanges.Clone()
 	m.showApplyTechnical = false
 	m.confirmApply = true
 	m.confirmPlugins = false
@@ -447,19 +500,22 @@ func (m Model) updateApplyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y", "enter":
 		if m.reviewedConfig == nil {
 			m.confirmApply = false
+			m.reviewedPluginChanges = plugins.ChangeSet{}
 			m.msg = "apply review expired; open it again"
 			return m, nil
 		}
 		snapshot := cloneConfig(m.reviewedConfig)
+		changeSnapshot := m.reviewedPluginChanges.Clone()
 		m.cfg = cloneConfig(snapshot)
 		m.busy = true
 		m.operation = "apply"
 		m.confirmApply = false
 		m.msg = ""
-		return m, doApply(snapshot)
+		return m, doApplyWithPlugins(snapshot, changeSnapshot)
 	case "n", "esc":
 		m.confirmApply = false
 		m.reviewedConfig = nil
+		m.reviewedPluginChanges = plugins.ChangeSet{}
 		m.showApplyTechnical = false
 		m.msg = "apply cancelled"
 	case "t":
@@ -507,7 +563,7 @@ func (m Model) selectionCount() int {
 	case tabThemes:
 		return len(themecatalog.List())
 	case tabPlugins:
-		return len(plugins.Catalog()) + len(m.customPluginIndices())
+		return len(m.pluginListItems())
 	case tabPreview:
 		return len(m.inputs)
 	default:

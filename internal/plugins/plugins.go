@@ -3,7 +3,6 @@ package plugins
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,37 +26,19 @@ func Dir() string {
 }
 
 func Add(cfg *config.Config, rawURL, load string) (string, error) {
-	rawURL = strings.TrimSpace(rawURL)
+	repository, err := ParseRepository(rawURL)
+	if err != nil {
+		return "", err
+	}
 	load = filepath.Clean(strings.TrimSpace(load))
 	if load == "." {
 		load = ""
 	}
-	if err := validateLoad(load); err != nil {
+	if err := ValidateLoadPath(load); err != nil {
 		return "", err
 	}
-
-	pluginURL, err := url.Parse(rawURL)
-	if err != nil {
-		return "", fmt.Errorf("invalid plugin URL: %w", err)
-	}
-	if pluginURL.Scheme != "https" || pluginURL.Host == "" || pluginURL.User != nil {
-		return "", fmt.Errorf("plugin URL must be an https repository URL without credentials")
-	}
-	if pluginURL.RawQuery != "" || pluginURL.ForceQuery {
-		return "", fmt.Errorf("plugin URL must not include a query string")
-	}
-	if pluginURL.Fragment != "" {
-		return "", fmt.Errorf("plugin URL must not include a fragment")
-	}
-
-	name := strings.TrimSuffix(filepath.Base(strings.TrimSuffix(pluginURL.Path, "/")), ".git")
-	if err := validateName(name); err != nil {
+	if err := ValidateNewRepository(cfg, repository); err != nil {
 		return "", err
-	}
-	for _, item := range cfg.Plugins.Items {
-		if item.Name == name {
-			return "", fmt.Errorf("plugin %q already exists", name)
-		}
 	}
 
 	pluginsDir := Dir()
@@ -71,7 +52,7 @@ func Add(cfg *config.Config, rawURL, load string) (string, error) {
 		return "", fmt.Errorf("failed to secure plugins dir: %w", err)
 	}
 
-	dst := filepath.Join(pluginsDir, name)
+	dst := filepath.Join(pluginsDir, repository.Name)
 	if _, err := os.Lstat(dst); err == nil {
 		return "", fmt.Errorf("plugin directory already exists: %s", dst)
 	} else if !os.IsNotExist(err) {
@@ -80,7 +61,7 @@ func Add(cfg *config.Config, rawURL, load string) (string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), cloneTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "git", "clone", "--depth", "1", rawURL, dst).CombinedOutput()
+	out, err := exec.CommandContext(ctx, "git", "clone", "--depth", "1", repository.URL, dst).CombinedOutput()
 	if err != nil {
 		_ = os.RemoveAll(dst)
 		if ctx.Err() == context.DeadlineExceeded {
@@ -94,13 +75,13 @@ func Add(cfg *config.Config, rawURL, load string) (string, error) {
 	}
 
 	cfg.Plugins.Items = append(cfg.Plugins.Items, config.PluginItem{
-		Name:    name,
+		Name:    repository.Name,
 		Enabled: true,
 		Trusted: false,
 		Source:  dst,
 		Load:    load,
 	})
-	return name, nil
+	return repository.Name, nil
 }
 
 func AddAndSave(cfg *config.Config, rawURL, load string) (string, error) {
@@ -235,21 +216,7 @@ func validateName(name string) error {
 }
 
 func validateLoad(load string) error {
-	if load == "" {
-		return fmt.Errorf("plugin load file is required")
-	}
-	if filepath.IsAbs(load) {
-		return fmt.Errorf("plugin load path must be relative")
-	}
-	clean := filepath.Clean(load)
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("plugin load path must stay inside plugin")
-	}
-	ext := strings.ToLower(filepath.Ext(clean))
-	if ext != ".zsh" && ext != ".sh" {
-		return fmt.Errorf("plugin load file must be .zsh or .sh")
-	}
-	return nil
+	return ValidateLoadPath(load)
 }
 
 func validatePluginSource(item config.PluginItem) error {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/snakepilot10/ozsh/internal/config"
+	"github.com/snakepilot10/ozsh/internal/plugins"
 )
 
 func TestHomeWorkspaceRegions(t *testing.T) {
@@ -16,7 +17,76 @@ func TestThemesWorkspaceRegions(t *testing.T) {
 }
 
 func TestPluginsWorkspaceRegions(t *testing.T) {
-	assertScreenRegions(t, tabPlugins, []string{"Recommended plugins", "Selected plugin"})
+	assertScreenRegions(t, tabPlugins, []string{
+		"Recommended plugins",
+		"Custom plugins",
+		"No custom plugins yet",
+		"[a] Add custom plugin",
+		"Selected plugin",
+	})
+}
+
+func TestPluginsWorkspaceShowsCustomPluginAndDetails(t *testing.T) {
+	cfg := config.Default()
+	cfg.Plugins.Items = append(cfg.Plugins.Items, config.PluginItem{
+		Name:    "my-plugin",
+		Enabled: true,
+		Trusted: false,
+		Source:  "/tmp/my-plugin",
+		Load:    "my.plugin.zsh",
+	})
+	model := NewModel(cfg)
+	model.width, model.height = 100, 34
+	model.setTab(tabPlugins)
+	model.cursor = len(plugins.Catalog())
+
+	plain := plainText(model.View())
+	for _, expected := range []string{
+		"Custom plugins",
+		"my-plugin",
+		"[untrusted]",
+		"Managed path",
+		"/tmp/my-plugin",
+		"Load file",
+		"my.plugin.zsh",
+	} {
+		if !strings.Contains(plain, expected) {
+			t.Fatalf("custom plugin screen lost %q:\n%s", expected, plain)
+		}
+	}
+}
+
+func TestPluginsCursorSelectsCustomItemAfterCatalog(t *testing.T) {
+	cfg := config.Default()
+	cfg.Plugins.Items = append(cfg.Plugins.Items, config.PluginItem{
+		Name: "my-plugin", Source: "/tmp/my-plugin", Load: "my.plugin.zsh",
+	})
+	model := NewModel(cfg)
+	model.setTab(tabPlugins)
+	model.cursor = len(plugins.Catalog())
+
+	item, ok := model.selectedPluginListItem()
+	if !ok {
+		t.Fatal("selectedPluginListItem() ok = false")
+	}
+	if item.Kind != pluginItemCustom || item.ConfigIndex != 0 {
+		t.Fatalf("selected item = %#v", item)
+	}
+	if model.selectionCount() != len(plugins.Catalog())+1 {
+		t.Fatalf("selectionCount() = %d", model.selectionCount())
+	}
+}
+
+func TestPluginsFooterOwnsAddCustomKey(t *testing.T) {
+	plain := plainText(screenFooter(tabPlugins))
+	for _, expected := range []string{"a add custom", "space enable", "t/u trust", "l load file", "d remove", "Ctrl+A apply"} {
+		if !strings.Contains(plain, expected) {
+			t.Fatalf("plugins footer lost %q: %s", expected, plain)
+		}
+	}
+	if strings.Contains(plain, "x advanced") {
+		t.Fatalf("plugins footer still exposes legacy advanced mode: %s", plain)
+	}
 }
 
 func TestPreviewWorkspaceRegions(t *testing.T) {

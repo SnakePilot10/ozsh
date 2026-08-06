@@ -110,6 +110,10 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 	viewSpec.contentHeight = spec.workspaceContentHeight
 
 	switch {
+	case m.pluginRemoveConfirm:
+		return m.pluginRemoveConfirmation(viewSpec)
+	case m.pluginWizard.Step != pluginWizardClosed:
+		return m.pluginWizardWorkspace(viewSpec)
 	case m.busy && m.operation == "plugins":
 		return "Installing plugins…\n\nCloning and validating the selected repositories."
 	case m.busy && m.operation == "font":
@@ -126,7 +130,9 @@ func (m Model) workspaceContent(spec layoutSpec) string {
 		return m.pluginInstallConfirmation()
 	case m.confirmApply && m.showApplyTechnical && m.reviewedConfig != nil:
 		return m.technicalApplyWorkspace()
-	case m.confirmApply || m.busy:
+	case m.confirmApply:
+		return m.appendPendingPluginReview(m.apply(), viewSpec)
+	case m.busy:
 		return m.apply()
 	case m.doctorOpen:
 		return m.doctor()
@@ -164,7 +170,7 @@ func screenFooter(tab int) string {
 	case tabThemes:
 		return renderHint("up/down choose  ·  enter apply  ·  [/] Circuit  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
 	case tabPlugins:
-		return renderHint("space toggle  ·  i install  ·  x advanced  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
+		return renderHint("a add custom  ·  space enable  ·  t/u trust  ·  l load file  ·  d remove  ·  Ctrl+A apply  ·  Ctrl+C quit")
 	case tabPreview:
 		return renderHint("[/] scenario  ·  up/down field  ·  Ctrl+A apply  ·  ? help  ·  Ctrl+C quit")
 	default:
